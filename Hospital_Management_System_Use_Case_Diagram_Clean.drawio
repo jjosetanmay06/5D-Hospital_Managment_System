@@ -1,0 +1,227 @@
+<mxfile host="app.diagrams.net" modified="2026-09-06T17:00:00.000Z" agent="ChatGPT" version="24.7.17">
+  <diagram name="Hospital Management System - Clean Use Case Diagram" id="HMS-CLEAN">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- System boundary -->
+        <mxCell id="system" value="HOSPITAL MANAGEMENT SYSTEM"
+          style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;verticalAlign=top;spacingTop=18;fontStyle=1;fontSize=16;"
+          vertex="1" parent="1">
+          <mxGeometry x="250" y="35" width="700" height="1030" as="geometry"/>
+        </mxCell>
+
+        <!-- Actors -->
+        <mxCell id="patient" value="Patient"
+          style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=14;"
+          vertex="1" parent="1">
+          <mxGeometry x="80" y="430" width="80" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="doctor" value="Doctor"
+          style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=14;"
+          vertex="1" parent="1">
+          <mxGeometry x="1040" y="430" width="80" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="staff" value="Hospital Staff"
+          style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=14;"
+          vertex="1" parent="1">
+          <mxGeometry x="1030" y="900" width="100" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- Use cases: left column -->
+        <mxCell id="uc1" value="UC-01: Patient Registration &amp; Login"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="105" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc2" value="UC-02: OTP Verification"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="205" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc3" value="UC-03: View Medical History"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="305" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc4" value="UC-04: Doctor Availability &amp; Appointment Booking"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="405" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc5" value="UC-05: Appointment Cancellation"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="505" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc8" value="UC-08: Online Payment &amp; Medicine Purchase"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="705" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc9" value="UC-09: File Download"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="315" y="805" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Use cases: right column -->
+        <mxCell id="uc6" value="UC-06: Medical Diagnosis &amp; Reports"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="605" y="505" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc7" value="UC-07: Prescription Management"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="605" y="605" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="uc10" value="UC-10: Check Bed Availability"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=12;"
+          vertex="1" parent="1">
+          <mxGeometry x="605" y="805" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Patient associations: independent routes -->
+        <mxCell id="p1" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="450"/><mxPoint x="275" y="450"/><mxPoint x="275" y="135"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="465"/><mxPoint x="260" y="465"/><mxPoint x="260" y="235"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="480"/><mxPoint x="245" y="480"/><mxPoint x="245" y="335"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p4" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="495"/><mxPoint x="230" y="495"/><mxPoint x="230" y="435"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p5" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="510"/><mxPoint x="230" y="510"/><mxPoint x="230" y="535"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p8" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="525"/><mxPoint x="245" y="525"/><mxPoint x="245" y="735"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p9" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="535"/><mxPoint x="260" y="535"/><mxPoint x="260" y="835"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Patient also accesses prescription -->
+        <mxCell id="p7" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="patient" target="uc7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="545"/><mxPoint x="195" y="545"/><mxPoint x="195" y="900"/><mxPoint x="585" y="900"/><mxPoint x="585" y="635"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Doctor associations: independent right-side corridors -->
+        <mxCell id="d3" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="doctor" target="uc3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="450"/><mxPoint x="975" y="450"/><mxPoint x="975" y="335"/><mxPoint x="905" y="335"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="d4" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="doctor" target="uc4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="465"/><mxPoint x="955" y="465"/><mxPoint x="955" y="435"/><mxPoint x="885" y="435"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="d6" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="doctor" target="uc6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="480"/><mxPoint x="935" y="480"/><mxPoint x="935" y="535"/><mxPoint x="885" y="535"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="d7" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="doctor" target="uc7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="495"/><mxPoint x="915" y="495"/><mxPoint x="915" y="635"/><mxPoint x="885" y="635"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Hospital Staff -->
+        <mxCell id="s10" style="edgeStyle=none;html=1;endArrow=none;strokeWidth=1;"
+          edge="1" parent="1" source="staff" target="uc10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="955"/><mxPoint x="930" y="955"/><mxPoint x="930" y="835"/><mxPoint x="885" y="835"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Include relationship -->
+        <mxCell id="include1" value="&lt;&lt;include&gt;&gt;"
+          style="dashed=1;endArrow=open;html=1;fontSize=10;edgeStyle=none;"
+          edge="1" parent="1" source="uc1" target="uc2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
