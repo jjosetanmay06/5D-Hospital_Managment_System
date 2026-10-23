@@ -1,0 +1,152 @@
+
+.booking-page {
+  min-height: 100vh;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 22px;
+  color: #183247;
+}
+
+.booking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.booking-header h1 {
+  margin: 8px 0;
+  font-size: 32px;
+}
+
+.booking-eyebrow {
+  color: #087e8b;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.booking-panel {
+  padding: 26px;
+  margin-bottom: 24px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px #16364d12;
+}
+
+.booking-panel h2 {
+  margin-top: 0;
+}
+
+.booking-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.booking-panel label {
+  margin-top: 8px;
+  font-weight: bold;
+}
+
+.booking-panel input,
+.booking-panel select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccd9e0;
+  border-radius: 8px;
+  background: white;
+  font-size: 15px;
+}
+
+.doctor-info {
+  margin: 0;
+  color: #647785;
+  font-size: 14px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 10px;
+}
+
+.slot {
+  background: #eef7f8;
+  color: #087e8b;
+  border: 1px solid #c7e5e7;
+}
+
+.slot.selected {
+  background: #087e8b;
+  color: white;
+}
+
+.book-button {
+  margin-top: 12px;
+  background: #087e8b;
+}
+
+.book-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logout-button {
+  background: #34495e;
+}
+
+.booking-message {
+  padding: 12px;
+  background: #eef7f8;
+  border-radius: 8px;
+}
+
+.appointment-list {
+  display: grid;
+  gap: 12px;
+}
+
+.appointment-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dbe5eb;
+  border-radius: 10px;
+}
+
+.appointment-card h3 {
+  margin: 0 0 6px;
+}
+
+.appointment-card p {
+  margin: 5px 0;
+  color: #647785;
+}
+
+.appointment-status {
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #e5f5eb;
+  color: #176b3a;
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .booking-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .booking-panel {
+    padding: 18px;
+  }
+
+  .appointment-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

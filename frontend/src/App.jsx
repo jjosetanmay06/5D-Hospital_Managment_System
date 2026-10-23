@@ -1,4 +1,4 @@
-
+import Booking from "./Booking";
 import { useState } from "react";
 import "./App.css";
 
@@ -89,20 +89,11 @@ export default function App() {
     setMessage("You have logged out.");
   }
 
-  if (user) {
-    return (
-      <main className="page">
-        <section className="card welcome">
-          <div className="logo">+</div>
-          <p className="eyebrow">CAREPOINT HOSPITAL</p>
-          <h1>Welcome, {user.name}!</h1>
-          <p>You are logged in to your patient account.</p>
-          <p>{user.email}</p>
-          <button onClick={logout}>Log out</button>
-        </section>
-      </main>
-    );
-  }
+ 
+if (user) {
+  return <Booking user={user} onLogout={logout} />;
+}
+
 
   return (
     <main className="page">
