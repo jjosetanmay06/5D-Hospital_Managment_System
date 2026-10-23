@@ -261,16 +261,39 @@ app.get("/api/doctors/:doctorId/slots", (req, res) => {
     });
   }
 
-  const parsedDate = new Date(`${date}T00:00:00`);
 
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== date
-  ) {
-    return res.status(400).json({
-      message: "Invalid calendar date."
-    });
-  }
+
+const [year, month, day] = date.split("-").map(Number);
+
+if (
+  !Number.isInteger(year) ||
+  !Number.isInteger(month) ||
+  !Number.isInteger(day) ||
+  month < 1 ||
+  month > 12 ||
+  day < 1 ||
+  day > 31
+) {
+  return res.status(400).json({
+    message: "Invalid calendar date."
+  });
+}
+
+const parsedDate = new Date(0);
+parsedDate.setHours(0, 0, 0, 0);
+parsedDate.setFullYear(year, month - 1, day);
+
+if (
+  parsedDate.getFullYear() !== year ||
+  parsedDate.getMonth() !== month - 1 ||
+  parsedDate.getDate() !== day
+) {
+  return res.status(400).json({
+    message: "Invalid calendar date."
+  });
+}
+
+
 
   const now = new Date();
   const today = [
@@ -295,6 +318,13 @@ app.get("/api/doctors/:doctorId/slots", (req, res) => {
 // Book an appointment
 app.post("/api/appointments", authenticatePatient, (req, res) => {
   const { doctorId, date, time } = req.body;
+  console.log("Booking request received:", {
+  doctorId,
+  date,
+  time,
+  dateType: typeof date,
+  timeType: typeof time
+});
 
   const doctor = doctors.find(item => item.id === doctorId);
 
@@ -315,17 +345,18 @@ app.post("/api/appointments", authenticatePatient, (req, res) => {
     });
   }
 
-  const parsedDate = new Date(`${date}T00:00:00`);
+ const [y, m, d] = date.split("-").map(Number);
+ const check = new Date(y, m - 1, d);
 
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== date
-  ) {
-    return res.status(400).json({
-      message: "Invalid appointment date."
-    });
-  }
-
+if (
+  check.getFullYear() !== y ||
+  check.getMonth() !== m - 1 ||
+  check.getDate() !== d
+) {
+  return res.status(400).json({
+    message: "Invalid appointment date."
+  });
+}
   const now = new Date();
   const today = [
     now.getFullYear(),

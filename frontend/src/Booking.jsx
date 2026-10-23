@@ -119,8 +119,21 @@ export default function Booking({ user, onLogout }) {
       );
       setSlots(slotsData.slots);
     } catch (error) {
-      setMessage(error.message);
-      await loadSlots();
+      async function refreshSlots() {
+  try {
+    const data = await request(
+      `/doctors/${doctorId}/slots?date=${encodeURIComponent(date)}`
+    );
+    setSlots(data.slots);
+  } catch {
+    setSlots([]);
+  }
+}
+
+// in bookAppointment's catch:
+setMessage(error.message);
+await refreshSlots();
+      
     }
   }
 
@@ -197,7 +210,7 @@ export default function Booking({ user, onLogout }) {
           <button
             className="book-button"
             type="submit"
-            disabled={!doctorId || !date || !time || loading}
+            disabled={!doctorId || !date || !time}
           >
             Confirm appointment
           </button>
