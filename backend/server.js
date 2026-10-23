@@ -204,6 +204,244 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+function getAvailableSlots(doctorId, date) {
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+
+  return appointmentSlots.filter(slot => {
+    const alreadyBooked = appointments.some(
+      appointment =>
+        appointment.doctorId === doctorId &&
+        appointment.date === date &&
+        appointment.time === slot &&
+        appointment.status === "Booked"
+    );
+
+    if (alreadyBooked) return false;
+
+    // Hide appointment times that have already passed today.
+    if (date === today) {
+      const [hours, minutes] = slot.split(":").map(Number);
+      const slotTime = new Date();
+      slotTime.setHours(hours, minutes, 0, 0);
+
+      if (slotTime <= now) return false;
+    }
+
+    return true;
+  });
+}
+
+// List available doctors
+app.get("/api/doctors", (_req, res) => {
+  res.json({ doctors });
+});
+
+// Check available slots for a doctor on a selected date
+app.get("/api/doctors/:doctorId/slots", (req, res) => {
+  const { doctorId } = req.params;
+  const { date } = req.query;
+
+  if (!doctors.some(doctor => doctor.id === doctorId)) {
+    return res.status(404).json({
+      message: "Doctor not found."
+    });
+  }
+
+  if (
+    typeof date !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date)
+  ) {
+    return res.status(400).json({
+      message: "Select a valid date in YYYY-MM-DD format."
+    });
+  }
+
+  const parsedDate = new Date(`${date}T00:00:00`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date
+  ) {
+    return res.status(400).json({
+      message: "Invalid calendar date."
+    });
+  }
+
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+
+  if (date < today) {
+    return res.status(400).json({
+      message: "Appointments cannot be booked in the past."
+    });
+  }
+
+  res.json({
+    doctorId,
+    date,
+    slots: getAvailableSlots(doctorId, date)
+  });
+});
+
+// Book an appointment
+app.post("/api/appointments", authenticatePatient, (req, res) => {
+  const { doctorId, date, time } = req.body;
+
+  const doctor = doctors.find(item => item.id === doctorId);
+
+  if (!doctor) {
+    return res.status(404).json({
+      message: "Doctor not found."
+    });
+  }
+
+  if (
+    typeof date !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    typeof time !== "string" ||
+    !appointmentSlots.includes(time)
+  ) {
+    return res.status(400).json({
+      message: "Select a valid appointment date and time."
+    });
+  }
+
+  const parsedDate = new Date(`${date}T00:00:00`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date
+  ) {
+    return res.status(400).json({
+      message: "Invalid appointment date."
+    });
+  }
+
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+
+  if (date < today) {
+    return res.status(400).json({
+      message: "Appointments cannot be booked in the past."
+    });
+  }
+
+  if (!getAvailableSlots(doctorId, date).includes(time)) {
+    return res.status(409).json({
+      message: "This time slot is unavailable. Please choose another."
+    });
+  }
+
+  const appointment = {
+    id: crypto.randomUUID(),
+    patientId: req.patient.id,
+    doctorId: doctor.id,
+    doctorName: doctor.name,
+    specialty: doctor.specialty,
+    date,
+    time,
+    status: "Booked",
+    createdAt: new Date().toISOString()
+  };
+
+  appointments.push(appointment);
+
+  res.status(201).json({
+    message: "Appointment booked successfully.",
+    appointment
+  });
+});
+
+// View the logged-in patient's appointments
+app.get("/api/appointments/me", authenticatePatient, (req, res) => {
+  const patientAppointments = appointments.filter(
+    appointment => appointment.patientId === req.patient.id
+  );
+
+  res.json({ appointments: patientAppointments });
+});
+
+
 app.listen(process.env.PORT || 5000, () => {
   console.log("Backend running at http://localhost:5000");
 });
+
+const doctors = [
+  {
+    id: "DOC001",
+    name: "Dr. Ananya Rao",
+    specialty: "Cardiology",
+    experience: 10
+  },
+  {
+    id: "DOC002",
+    name: "Dr. Rahul Sharma",
+    specialty: "Dermatology",
+    experience: 8
+  },
+  {
+    id: "DOC003",
+    name: "Dr. Priya Nair",
+    specialty: "General Medicine",
+    experience: 6
+  },
+  {
+    id: "DOC004",
+    name: "Dr. Arjun Kumar",
+    specialty: "Orthopedics",
+    experience: 12
+  }
+];
+
+const appointments = [];
+
+const appointmentSlots = [
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "14:00",
+  "15:00",
+  "16:00"
+];
+
+function authenticatePatient(req, res, next) {
+  const authorization = req.headers.authorization;
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return res.status(401).json({
+      message: "Please log in to continue."
+    });
+  }
+
+  try {
+    const token = authorization.slice(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== "patient") {
+      return res.status(403).json({
+        message: "Only patients can book appointments."
+      });
+    }
+
+    req.patient = decoded;
+    next();
+  } catch {
+    return res.status(401).json({
+      message: "Invalid or expired login session."
+    });
+  }
+}
