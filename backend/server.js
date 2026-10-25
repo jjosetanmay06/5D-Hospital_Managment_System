@@ -406,6 +406,44 @@ app.get("/api/appointments/me", authenticatePatient, (req, res) => {
 });
 
 
+app.patch(
+  "/api/appointments/:id/cancel",
+  authenticatePatient,
+  (req, res) => {
+    const appointment = appointments.find(
+      item => item.id === req.params.id
+    );
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Appointment not found."
+      });
+    }
+
+    if (appointment.patientId !== req.patient.id) {
+      return res.status(403).json({
+        message: "You cannot cancel another patient's appointment."
+      });
+    }
+
+    if (appointment.status !== "Booked") {
+      return res.status(409).json({
+        message: "This appointment can no longer be cancelled."
+      });
+    }
+
+    appointment.status = "cancelled";
+    appointment.cancelledAt = new Date().toISOString();
+
+    return res.json({
+      message: "Appointment cancelled successfully.",
+      appointment
+    });
+  }
+);
+
+
+
 app.listen(process.env.PORT || 5000, () => {
   console.log("Backend running at http://localhost:5000");
 });
