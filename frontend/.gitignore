@@ -1,3 +1,4 @@
+
 # Logs
 logs
 *.log
@@ -7,18 +8,27 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
 *.local
 
-# Editor directories and files
+# Editor files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Backend secrets and local files
+/backend/.env
+/backend/node_modules/
+/backend/private-reports/
+
+# Temporary backups
+*.task5-backup

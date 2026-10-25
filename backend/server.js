@@ -5,6 +5,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import crypto from "node:crypto";
+import multer from "multer";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 dotenv.config();
 
@@ -442,6 +446,236 @@ app.patch(
   }
 );
 
+
+
+
+/* TASK5_MEDICAL_REPORTS_START */
+const medicalRecords = [];
+const reportRecords = [];
+
+const task5BackendDir = path.dirname(fileURLToPath(import.meta.url));
+const privateReportDir = path.join(task5BackendDir, "private-reports");
+fs.mkdirSync(privateReportDir, { recursive: true });
+
+const reportStorage = multer.diskStorage({
+  destination: (_req, _file, callback) => callback(null, privateReportDir),
+  filename: (_req, file, callback) => {
+    const extensionByType = {
+      "application/pdf": ".pdf",
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+    };
+    callback(null, crypto.randomUUID() + (extensionByType[file.mimetype] || ""));
+  },
+});
+
+const reportUpload = multer({
+  storage: reportStorage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const allowed = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowed.includes(file.mimetype)) {
+      return callback(new Error("Only PDF, JPEG and PNG files are accepted."));
+    }
+    callback(null, true);
+  },
+});
+
+function authenticateDoctor(req, res, next) {
+  const authorization = req.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Doctor login is required." });
+  }
+  try {
+    const decoded = jwt.verify(authorization.slice(7), process.env.JWT_SECRET);
+    if (decoded.role !== "doctor") {
+      return res.status(403).json({ message: "Doctor access only." });
+    }
+    req.doctor = decoded;
+    next();
+  } catch {
+    return res.status(401).json({ message: "Invalid or expired login session." });
+  }
+}
+
+function authenticateMedicalViewer(req, res, next) {
+  const authorization = req.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Please log in to access this report." });
+  }
+  try {
+    req.viewer = jwt.verify(authorization.slice(7), process.env.JWT_SECRET);
+    if (!["doctor", "patient"].includes(req.viewer.role)) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+    next();
+  } catch {
+    return res.status(401).json({ message: "Invalid or expired login session." });
+  }
+}
+
+// Demo doctor account is configured locally in backend/.env; never hard-code a password here.
+app.post("/api/auth/doctor-login", (req, res) => {
+  const { email, password } = req.body || {};
+  const configuredEmail = (process.env.DOCTOR_EMAIL || "").toLowerCase();
+  const configuredPassword = process.env.DOCTOR_PASSWORD || "";
+  const configuredDoctorId = process.env.DOCTOR_ID || "DOC001";
+
+  if (!configuredEmail || !configuredPassword) {
+    return res.status(503).json({
+      message: "Doctor login is not configured. Set DOCTOR_EMAIL and DOCTOR_PASSWORD in backend/.env.",
+    });
+  }
+  if (typeof email !== "string" || typeof password !== "string" ||
+      email.toLowerCase() !== configuredEmail || password !== configuredPassword) {
+    return res.status(401).json({ message: "Invalid doctor email or password." });
+  }
+
+  const doctor = doctors.find((item) => item.id === configuredDoctorId);
+  if (!doctor) {
+    return res.status(500).json({ message: "Configured DOCTOR_ID does not match a doctor in the system." });
+  }
+  const doctorUser = {
+    id: doctor.id,
+    email: configuredEmail,
+    name: doctor.name,
+    role: "doctor",
+  };
+  return res.json({ token: createToken(doctorUser), user: doctorUser });
+});
+
+// Doctors can only see appointments assigned to their own doctor ID.
+app.get("/api/doctor/appointments", authenticateDoctor, (req, res) => {
+  const assigned = appointments
+    .filter((appointment) => appointment.doctorId === req.doctor.id)
+    .map((appointment) => {
+      const patient = users.find((item) => item.id === appointment.patientId);
+      return {
+        ...appointment,
+        patientName: patient?.name || "Patient",
+        patientEmail: patient?.email || "",
+        medicalHistory: medicalRecords
+          .filter((record) => record.patientId === appointment.patientId)
+          .map(({ id, diagnosis, treatmentNotes, createdAt }) => ({ id, diagnosis, treatmentNotes, createdAt })),
+        reports: reportRecords
+          .filter((report) => report.patientId === appointment.patientId)
+          .map(({ id, reportName, instructions, status, originalName, storedName }) => ({
+            id, reportName, instructions, status, originalName, hasFile: Boolean(storedName),
+          })),
+      };
+    });
+  res.json({ appointments: assigned });
+});
+
+app.post("/api/doctor/appointments/:id/diagnoses", authenticateDoctor, (req, res) => {
+  const appointment = appointments.find((item) =>
+    item.id === req.params.id && item.doctorId === req.doctor.id
+  );
+  if (!appointment) {
+    return res.status(404).json({ message: "Assigned appointment not found." });
+  }
+
+  const diagnosis = typeof req.body?.diagnosis === "string" ? req.body.diagnosis.trim() : "";
+  const treatmentNotes = typeof req.body?.treatmentNotes === "string" ? req.body.treatmentNotes.trim() : "";
+  if (!diagnosis || diagnosis.length > 3000 || treatmentNotes.length > 5000) {
+    return res.status(400).json({ message: "Enter a diagnosis (max 3000 characters); notes may be up to 5000 characters." });
+  }
+
+  const record = {
+    id: crypto.randomUUID(),
+    appointmentId: appointment.id,
+    patientId: appointment.patientId,
+    doctorId: req.doctor.id,
+    diagnosis,
+    treatmentNotes,
+    createdAt: new Date().toISOString(),
+  };
+  medicalRecords.push(record);
+  return res.status(201).json({ message: "Diagnosis saved.", record });
+});
+
+// Record a report request/details, optionally with a private PDF/JPEG/PNG attachment.
+app.post("/api/doctor/appointments/:id/reports", authenticateDoctor, (req, res, next) => {
+  reportUpload.single("file")(req, res, (uploadError) => {
+    if (uploadError) {
+      return res.status(400).json({ message: uploadError.message || "Unable to upload report." });
+    }
+    next();
+  });
+}, (req, res) => {
+  const appointment = appointments.find((item) =>
+    item.id === req.params.id && item.doctorId === req.doctor.id
+  );
+  if (!appointment) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(404).json({ message: "Assigned appointment not found." });
+  }
+
+  const reportName = typeof req.body?.reportName === "string" ? req.body.reportName.trim() : "";
+  const instructions = typeof req.body?.instructions === "string" ? req.body.instructions.trim() : "";
+  if (!reportName || reportName.length > 200 || instructions.length > 3000) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ message: "Enter a report name (max 200 characters); instructions may be up to 3000 characters." });
+  }
+
+  const report = {
+    id: crypto.randomUUID(),
+    appointmentId: appointment.id,
+    patientId: appointment.patientId,
+    doctorId: req.doctor.id,
+    reportName,
+    instructions,
+    status: req.file ? "Uploaded" : "Requested",
+    originalName: req.file ? path.basename(req.file.originalname) : "",
+    storedName: req.file ? path.basename(req.file.filename) : "",
+    storedPath: req.file ? req.file.path : "",
+    createdAt: new Date().toISOString(),
+  };
+  reportRecords.push(report);
+  return res.status(201).json({
+    message: req.file ? "Report details and file saved." : "Report request/details saved.",
+    report: {
+      id: report.id, reportName: report.reportName, instructions: report.instructions,
+      status: report.status, hasFile: Boolean(report.storedName),
+    },
+  });
+});
+
+// Patients can only see medical records and report details tied to their own patient ID.
+app.get("/api/patient/medical-records", authenticatePatient, (req, res) => {
+  const records = medicalRecords
+    .filter((record) => record.patientId === req.patient.id)
+    .map(({ id, appointmentId, diagnosis, treatmentNotes, createdAt }) => ({
+      id, appointmentId, diagnosis, treatmentNotes, createdAt,
+    }));
+  const reports = reportRecords
+    .filter((report) => report.patientId === req.patient.id)
+    .map(({ id, appointmentId, reportName, instructions, status, originalName, createdAt }) => ({
+      id, appointmentId, reportName, instructions, status, originalName,
+      hasFile: Boolean(reportRecords.find((item) => item.id === id)?.storedName), createdAt,
+    }));
+  res.json({ records, reports });
+});
+
+// Private download route: only the assigned doctor or the report's patient can download.
+app.get("/api/reports/:id/download", authenticateMedicalViewer, (req, res) => {
+  const report = reportRecords.find((item) => item.id === req.params.id);
+  if (!report || !report.storedName || !report.storedPath) {
+    return res.status(404).json({ message: "Report file not found." });
+  }
+
+  const allowed = req.viewer.role === "doctor"
+    ? report.doctorId === req.viewer.id
+    : report.patientId === req.viewer.id;
+  if (!allowed) {
+    return res.status(403).json({ message: "You are not authorized to access this report." });
+  }
+  if (!fs.existsSync(report.storedPath)) {
+    return res.status(404).json({ message: "The report file is missing from server storage." });
+  }
+  return res.download(report.storedPath, report.originalName || "medical-report");
+});
+/* TASK5_MEDICAL_REPORTS_END */
 
 
 app.listen(process.env.PORT || 5000, () => {

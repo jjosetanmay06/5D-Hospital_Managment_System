@@ -1,0 +1,26 @@
+.doctor-page { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; color: #172033; }
+.doctor-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
+.doctor-eyebrow { color: #237b78; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+.doctor-header h1 { margin: 8px 0; font-size: clamp(26px, 4vw, 38px); }
+.doctor-header p { line-height: 1.5; }
+.doctor-logout, .doctor-panel button[type="submit"] { border: 0; border-radius: 9px; padding: 11px 16px; background: #176b68; color: white; font-weight: 700; cursor: pointer; }
+.doctor-logout { background: #25364b; }
+.doctor-message { margin-bottom: 18px; padding: 12px 14px; border-radius: 9px; background: #eef7f6; }
+.doctor-panel { background: white; border: 1px solid #e0e7ee; border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(18, 38, 63, .04); }
+.doctor-panel h2 { margin-top: 0; }
+.doctor-appointment-grid { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.6fr); gap: 22px; }
+.doctor-appointment-list { display: flex; flex-direction: column; gap: 8px; }
+.doctor-appointment { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%; text-align: left; padding: 13px; border: 1px solid #dce4ea; border-radius: 10px; background: #fff; color: #172033; cursor: pointer; }
+.doctor-appointment.active { border-color: #176b68; background: #eef8f7; }
+.doctor-appointment span, .medical-item small { color: #596779; font-size: 13px; }
+.doctor-patient-detail h3 { margin-bottom: 8px; }
+.medical-item { border: 1px solid #e1e8ed; border-radius: 9px; padding: 12px; margin: 10px 0; overflow-wrap: anywhere; }
+.medical-item p { margin: 7px 0; white-space: pre-wrap; }
+.inline-action { display: block; margin-top: 8px; border: 0; background: transparent; color: #176b68; text-decoration: underline; cursor: pointer; padding: 0; }
+.doctor-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.doctor-panel form { display: flex; flex-direction: column; gap: 9px; }
+.doctor-panel label { font-weight: 650; margin-top: 7px; }
+.doctor-panel input, .doctor-panel textarea { box-sizing: border-box; width: 100%; padding: 11px 12px; border: 1px solid #cbd5df; border-radius: 8px; font: inherit; background: white; }
+.doctor-panel textarea { resize: vertical; }
+.doctor-panel button[type="submit"]:disabled { opacity: .65; cursor: wait; }
+@media (max-width: 760px) { .doctor-header { flex-direction: column; } .doctor-appointment-grid, .doctor-form-grid { grid-template-columns: 1fr; } }
