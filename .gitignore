@@ -1,0 +1,11 @@
+# Environment secrets
+/backend/.env
+
+# Dependencies
+/backend/node_modules/
+
+# Uploaded medical reports
+/backend/private-reports/
+
+# Temporary backups
+*.task5-backup

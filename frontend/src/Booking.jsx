@@ -28,35 +28,40 @@ export default function Booking({ user, onLogout }) {
 
   const token = localStorage.getItem("token");
 
-  const request = useCallback(async (path, options = {}) => {
-    const response = await fetch(`${API}${path}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...options.headers
+  const request = useCallback(
+    async (path, options = {}) => {
+      const response = await fetch(`${API}${path}`, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(options.body && !(options.body instanceof FormData)
+            ? { "Content-Type": "application/json" }
+            : {}),
+          ...options.headers,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || `Request failed (${response.status}).`
+        );
       }
-    });
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || `Request failed (${response.status}).`);
-    }
-
-    return data;
-  }, [token]);
+      return data;
+    },
+    [token]
+  );
 
   const loadDoctors = useCallback(async () => {
-    setLoadingDoctors(true);
-
     try {
       const data = await request("/doctors");
       const doctorList = Array.isArray(data.doctors) ? data.doctors : [];
 
       setDoctors(doctorList);
-      setDoctorId(current =>
-        doctorList.some(doctor => doctor.id === current)
+      setDoctorId((current) =>
+        doctorList.some((doctor) => doctor.id === current)
           ? current
           : doctorList[0]?.id || ""
       );
@@ -75,7 +80,9 @@ export default function Booking({ user, onLogout }) {
   const loadAppointments = useCallback(async () => {
     try {
       const data = await request("/appointments/me");
-      setAppointments(Array.isArray(data.appointments) ? data.appointments : []);
+      setAppointments(
+        Array.isArray(data.appointments) ? data.appointments : []
+      );
     } catch (error) {
       setMessage(`Unable to load appointments: ${error.message}`);
     }
@@ -84,12 +91,8 @@ export default function Booking({ user, onLogout }) {
   const loadSlots = useCallback(async () => {
     if (!doctorId || !date) {
       setSlots([]);
-      setTime("");
       return;
     }
-
-    setLoadingSlots(true);
-    setTime("");
 
     try {
       const data = await request(
@@ -106,12 +109,12 @@ export default function Booking({ user, onLogout }) {
   }, [doctorId, date, request]);
 
   useEffect(() => {
-    loadDoctors();
-    loadAppointments();
+    Promise.resolve().then(loadDoctors);
+    Promise.resolve().then(loadAppointments);
   }, [loadDoctors, loadAppointments]);
 
   useEffect(() => {
-    loadSlots();
+    Promise.resolve().then(loadSlots);
   }, [loadSlots]);
 
   async function bookAppointment(event) {
@@ -128,7 +131,7 @@ export default function Booking({ user, onLogout }) {
     try {
       const data = await request("/appointments", {
         method: "POST",
-        body: JSON.stringify({ doctorId, date, time })
+        body: JSON.stringify({ doctorId, date, time }),
       });
 
       setMessage(data.message || "Appointment booked successfully.");
@@ -148,9 +151,7 @@ export default function Booking({ user, onLogout }) {
       `Are you sure you want to cancel your appointment with ${appointment.doctorName} on ${appointment.date} at ${appointment.time}?`
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setCancellingId(appointment.id);
     setMessage("");
@@ -171,7 +172,9 @@ export default function Booking({ user, onLogout }) {
     }
   }
 
-  const selectedDoctor = doctors.find(doctor => doctor.id === doctorId);
+  const selectedDoctor = doctors.find(
+    (doctor) => doctor.id === doctorId
+  );
 
   return (
     <main className="booking-page">
@@ -180,17 +183,26 @@ export default function Booking({ user, onLogout }) {
           <p className="booking-eyebrow">CAREPOINT HOSPITAL</p>
           <h1>Appointment Booking</h1>
           <p>
-            Welcome, {user?.name || "Patient"}. Find a doctor and book your visit.
+            Welcome, {user?.name || "Patient"}. Find a doctor and book your
+            visit.
           </p>
         </div>
 
-        <button className="logout-button" onClick={onLogout} type="button">
+        <button
+          className="logout-button"
+          onClick={onLogout}
+          type="button"
+        >
           Log out
         </button>
       </header>
 
       {message && (
-        <div className="booking-message" role="status" aria-live="polite">
+        <div
+          className="booking-message"
+          role="status"
+          aria-live="polite"
+        >
           {message}
         </div>
       )}
@@ -204,13 +216,18 @@ export default function Booking({ user, onLogout }) {
           <select
             id="doctor"
             value={doctorId}
-            onChange={event => setDoctorId(event.target.value)}
+            onChange={(event) => {
+              setDoctorId(event.target.value);
+              setTime("");
+            }}
             required
             disabled={loadingDoctors || doctors.length === 0}
           >
-            {doctors.length === 0 && <option value="">No doctors available</option>}
+            {doctors.length === 0 && (
+              <option value="">No doctors available</option>
+            )}
 
-            {doctors.map(doctor => (
+            {doctors.map((doctor) => (
               <option key={doctor.id} value={doctor.id}>
                 {doctor.name} — {doctor.specialty}
               </option>
@@ -229,7 +246,10 @@ export default function Booking({ user, onLogout }) {
             type="date"
             value={date}
             min={getToday()}
-            onChange={event => setDate(event.target.value)}
+            onChange={(event) => {
+              setDate(event.target.value);
+              setTime("");
+            }}
             required
           />
 
@@ -241,7 +261,7 @@ export default function Booking({ user, onLogout }) {
             <p>No slots available for this date. Try another date.</p>
           ) : (
             <div className="slot-grid">
-              {slots.map(slot => (
+              {slots.map((slot) => (
                 <button
                   key={slot}
                   type="button"
@@ -279,14 +299,16 @@ export default function Booking({ user, onLogout }) {
           <p>You have no appointments yet.</p>
         ) : (
           <div className="appointment-list">
-            {appointments.map(appointment => {
+            {appointments.map((appointment) => {
               const isBooked =
                 String(appointment.status).toLowerCase() === "booked";
-
               const isCancelling = cancellingId === appointment.id;
 
               return (
-                <article className="appointment-card" key={appointment.id}>
+                <article
+                  className="appointment-card"
+                  key={appointment.id}
+                >
                   <div className="appointment-details">
                     <h3>{appointment.doctorName}</h3>
                     <p>{appointment.specialty}</p>
@@ -311,7 +333,9 @@ export default function Booking({ user, onLogout }) {
                         onClick={() => cancelAppointment(appointment)}
                         disabled={Boolean(cancellingId)}
                       >
-                        {isCancelling ? "Cancelling..." : "Cancel appointment"}
+                        {isCancelling
+                          ? "Cancelling..."
+                          : "Cancel appointment"}
                       </button>
                     )}
                   </div>
