@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./Booking.css";
 
 const API = "http://localhost:5000/api";
@@ -9,6 +9,7 @@ function getToday() {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
+
   return `${year}-${month}-${day}`;
 }
 
@@ -20,87 +21,108 @@ export default function Booking({ user, onLogout }) {
   const [time, setTime] = useState("");
   const [appointments, setAppointments] = useState([]);
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState("");
 
   const token = localStorage.getItem("token");
 
-  async function request(path, options = {}) {
+  const request = useCallback(async (path, options = {}) => {
     const response = await fetch(`${API}${path}`, {
       ...options,
       headers: {
         Authorization: `Bearer ${token}`,
-        ...(options.body
-          ? { "Content-Type": "application/json" }
-          : {}),
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...options.headers
       }
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || "Request failed.");
+      throw new Error(data.message || `Request failed (${response.status}).`);
     }
 
     return data;
-  }
+  }, [token]);
 
-  async function loadDoctors() {
+  const loadDoctors = useCallback(async () => {
+    setLoadingDoctors(true);
+
     try {
       const data = await request("/doctors");
-      setDoctors(data.doctors);
+      const doctorList = Array.isArray(data.doctors) ? data.doctors : [];
 
-      if (data.doctors.length > 0) {
-        setDoctorId(current => current || data.doctors[0].id);
+      setDoctors(doctorList);
+      setDoctorId(current =>
+        doctorList.some(doctor => doctor.id === current)
+          ? current
+          : doctorList[0]?.id || ""
+      );
+
+      if (doctorList.length === 0) {
+        setMessage("No doctors are currently available.");
       }
     } catch (error) {
-      setMessage(error.message);
+      setDoctors([]);
+      setMessage(`Unable to load doctors: ${error.message}`);
+    } finally {
+      setLoadingDoctors(false);
     }
-  }
+  }, [request]);
 
-  async function loadAppointments() {
+  const loadAppointments = useCallback(async () => {
     try {
       const data = await request("/appointments/me");
-      setAppointments(data.appointments);
+      setAppointments(Array.isArray(data.appointments) ? data.appointments : []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(`Unable to load appointments: ${error.message}`);
     }
-  }
+  }, [request]);
 
-  async function loadSlots() {
+  const loadSlots = useCallback(async () => {
     if (!doctorId || !date) {
       setSlots([]);
+      setTime("");
       return;
     }
 
-    setLoading(true);
-    setMessage("");
+    setLoadingSlots(true);
     setTime("");
 
     try {
       const data = await request(
-        `/doctors/${doctorId}/slots?date=${encodeURIComponent(date)}`
+        `/doctors/${encodeURIComponent(doctorId)}/slots?date=${encodeURIComponent(date)}`
       );
-      setSlots(data.slots);
+
+      setSlots(Array.isArray(data.slots) ? data.slots : []);
     } catch (error) {
       setSlots([]);
-      setMessage(error.message);
+      setMessage(`Unable to load time slots: ${error.message}`);
     } finally {
-      setLoading(false);
+      setLoadingSlots(false);
     }
-  }
+  }, [doctorId, date, request]);
 
   useEffect(() => {
     loadDoctors();
     loadAppointments();
-  }, []);
+  }, [loadDoctors, loadAppointments]);
 
   useEffect(() => {
     loadSlots();
-  }, [doctorId, date]);
+  }, [loadSlots]);
 
   async function bookAppointment(event) {
     event.preventDefault();
+
+    if (!doctorId || !date || !time) {
+      setMessage("Please select a doctor, date and available time.");
+      return;
+    }
+
+    setSubmitting(true);
     setMessage("");
 
     try {
@@ -109,33 +131,47 @@ export default function Booking({ user, onLogout }) {
         body: JSON.stringify({ doctorId, date, time })
       });
 
-      setMessage(data.message);
+      setMessage(data.message || "Appointment booked successfully.");
       setTime("");
-      await loadAppointments();
 
-      // Refresh the slot list after booking.
-      const slotsData = await request(
-        `/doctors/${doctorId}/slots?date=${encodeURIComponent(date)}`
-      );
-      setSlots(slotsData.slots);
+      await Promise.all([loadAppointments(), loadSlots()]);
     } catch (error) {
-      async function refreshSlots() {
-  try {
-    const data = await request(
-      `/doctors/${doctorId}/slots?date=${encodeURIComponent(date)}`
-    );
-    setSlots(data.slots);
-  } catch {
-    setSlots([]);
-  }
-}
-
-// in bookAppointment's catch:
-setMessage(error.message);
-await refreshSlots();
-      
+      setMessage(error.message);
+      await loadSlots();
+    } finally {
+      setSubmitting(false);
     }
   }
+
+  async function cancelAppointment(appointment) {
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel your appointment with ${appointment.doctorName} on ${appointment.date} at ${appointment.time}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCancellingId(appointment.id);
+    setMessage("");
+
+    try {
+      const data = await request(
+        `/appointments/${encodeURIComponent(appointment.id)}/cancel`,
+        { method: "PATCH" }
+      );
+
+      setMessage(data.message || "Appointment cancelled successfully.");
+
+      await Promise.all([loadAppointments(), loadSlots()]);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setCancellingId("");
+    }
+  }
+
+  const selectedDoctor = doctors.find(doctor => doctor.id === doctorId);
 
   return (
     <main className="booking-page">
@@ -143,25 +179,37 @@ await refreshSlots();
         <div>
           <p className="booking-eyebrow">CAREPOINT HOSPITAL</p>
           <h1>Appointment Booking</h1>
-          <p>Welcome, {user.name}. Find a doctor and book your visit.</p>
+          <p>
+            Welcome, {user?.name || "Patient"}. Find a doctor and book your visit.
+          </p>
         </div>
 
-        <button className="logout-button" onClick={onLogout}>
+        <button className="logout-button" onClick={onLogout} type="button">
           Log out
         </button>
       </header>
+
+      {message && (
+        <div className="booking-message" role="status" aria-live="polite">
+          {message}
+        </div>
+      )}
 
       <section className="booking-panel">
         <h2>Book an appointment</h2>
 
         <form onSubmit={bookAppointment}>
           <label htmlFor="doctor">Choose a doctor</label>
+
           <select
             id="doctor"
             value={doctorId}
             onChange={event => setDoctorId(event.target.value)}
             required
+            disabled={loadingDoctors || doctors.length === 0}
           >
+            {doctors.length === 0 && <option value="">No doctors available</option>}
+
             {doctors.map(doctor => (
               <option key={doctor.id} value={doctor.id}>
                 {doctor.name} — {doctor.specialty}
@@ -169,10 +217,9 @@ await refreshSlots();
             ))}
           </select>
 
-          {doctors.find(doctor => doctor.id === doctorId) && (
+          {selectedDoctor && (
             <p className="doctor-info">
-              {doctors.find(doctor => doctor.id === doctorId).experience}
-              {" "}years of experience
+              {selectedDoctor.experience} years of experience
             </p>
           )}
 
@@ -188,8 +235,8 @@ await refreshSlots();
 
           <label>Available time slots</label>
 
-          {loading ? (
-            <p>Loading available slots...</p>
+          {loadingDoctors || loadingSlots ? (
+            <p>Loading available time slots...</p>
           ) : slots.length === 0 ? (
             <p>No slots available for this date. Try another date.</p>
           ) : (
@@ -199,6 +246,7 @@ await refreshSlots();
                   key={slot}
                   type="button"
                   className={time === slot ? "slot selected" : "slot"}
+                  aria-pressed={time === slot}
                   onClick={() => setTime(slot)}
                 >
                   {slot}
@@ -210,17 +258,18 @@ await refreshSlots();
           <button
             className="book-button"
             type="submit"
-            disabled={!doctorId || !date || !time}
+            disabled={
+              loadingDoctors ||
+              loadingSlots ||
+              submitting ||
+              !doctorId ||
+              !date ||
+              !time
+            }
           >
-            Confirm appointment
+            {submitting ? "Booking..." : "Confirm appointment"}
           </button>
         </form>
-
-        {message && (
-          <p className="booking-message" role="status">
-            {message}
-          </p>
-        )}
       </section>
 
       <section className="booking-panel">
@@ -230,21 +279,45 @@ await refreshSlots();
           <p>You have no appointments yet.</p>
         ) : (
           <div className="appointment-list">
-            {appointments.map(appointment => (
-              <article className="appointment-card" key={appointment.id}>
-                <div>
-                  <h3>{appointment.doctorName}</h3>
-                  <p>{appointment.specialty}</p>
-                  <p>
-                    {appointment.date} at {appointment.time}
-                  </p>
-                </div>
+            {appointments.map(appointment => {
+              const isBooked =
+                String(appointment.status).toLowerCase() === "booked";
 
-                <span className="appointment-status">
-                  {appointment.status}
-                </span>
-              </article>
-            ))}
+              const isCancelling = cancellingId === appointment.id;
+
+              return (
+                <article className="appointment-card" key={appointment.id}>
+                  <div className="appointment-details">
+                    <h3>{appointment.doctorName}</h3>
+                    <p>{appointment.specialty}</p>
+                    <p>
+                      {appointment.date} at {appointment.time}
+                    </p>
+                  </div>
+
+                  <div className="appointment-actions">
+                    <span
+                      className={`appointment-status ${
+                        isBooked ? "booked" : "cancelled"
+                      }`}
+                    >
+                      {appointment.status}
+                    </span>
+
+                    {isBooked && (
+                      <button
+                        className="cancel-button"
+                        type="button"
+                        onClick={() => cancelAppointment(appointment)}
+                        disabled={Boolean(cancellingId)}
+                      >
+                        {isCancelling ? "Cancelling..." : "Cancel appointment"}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

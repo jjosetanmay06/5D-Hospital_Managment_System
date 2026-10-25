@@ -311,3 +311,143 @@
     flex-direction: column;
   }
 }
+
+
+.appointment-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cancel-button {
+  background: #b42318;
+  color: white;
+  padding: 9px 12px;
+  border-radius: 8px;
+}
+
+.cancel-button:hover {
+  background: #8f1d14;
+}
+
+.appointment-status.cancelled {
+  background: #fce8e6;
+  color: #a12622;
+}
+
+@media (max-width: 600px) {
+  .appointment-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+
+/* ===== Task 4: Appointment cancellation ===== */
+
+.booking-page > .booking-message {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 20px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #183247;
+  overflow-wrap: anywhere;
+}
+
+.appointment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.appointment-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid #dce7ed;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.appointment-details {
+  min-width: 0;
+}
+
+.appointment-details h3 {
+  margin: 0 0 8px;
+  color: #183247;
+}
+
+.appointment-details p {
+  margin: 5px 0;
+  overflow-wrap: anywhere;
+}
+
+.appointment-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.appointment-status {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.appointment-status.booked {
+  background: #e1f5eb;
+  color: #17663b;
+}
+
+.appointment-status.cancelled {
+  background: #fde8e8;
+  color: #a32626;
+}
+
+.booking-page .cancel-button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #b83232;
+  color: #ffffff;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.booking-page .cancel-button:hover:not(:disabled) {
+  background: #922626;
+}
+
+.booking-page .cancel-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .appointment-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .appointment-actions {
+    align-items: flex-start;
+  }
+
+  .slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .booking-panel {
+    padding: 24px 18px;
+  }
+}
