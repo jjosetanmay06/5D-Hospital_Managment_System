@@ -678,6 +678,240 @@ app.get("/api/reports/:id/download", authenticateMedicalViewer, (req, res) => {
 /* TASK5_MEDICAL_REPORTS_END */
 
 
+/* TASK 8: DEMO MEDICINE PURCHASE AND PAYMENT */
+
+// Demo medicine catalogue. Prices are calculated on the server.
+const medicineCatalogue = [
+  {
+    id: "MED001",
+    name: "Paracetamol 500 mg",
+    description: "Demo pain and fever medicine",
+    price: 30
+  },
+  {
+    id: "MED002",
+    name: "Cetirizine 10 mg",
+    description: "Demo allergy medicine",
+    price: 45
+  },
+  {
+    id: "MED003",
+    name: "Vitamin C 500 mg",
+    description: "Demo vitamin supplement",
+    price: 80
+  },
+  {
+    id: "MED004",
+    name: "Antacid Tablets",
+    description: "Demo antacid medicine",
+    price: 60
+  }
+];
+
+// In-memory demo data. Orders reset when the backend restarts.
+const demoOrders = [];
+
+// Demo prescription mapping.
+// Replace this with actual prescriptions created by doctors.
+// Patients can only access the medicines mapped to their own patient ID.
+const demoPrescriptions = new Map();
+
+// Return the current patient's prescribed medicines.
+app.get(
+  "/api/medicines/prescribed",
+  authenticatePatient,
+  (req, res) => {
+    const medicineIds = demoPrescriptions.get(req.patient.id) || [];
+
+    const medicines = medicineCatalogue.filter(
+      medicine => medicineIds.includes(medicine.id)
+    );
+
+    return res.json({ medicines });
+  }
+);
+
+// Demo-only endpoint to seed sample prescriptions for the logged-in patient.
+// This is for local demonstrations only; remove it before production.
+app.post(
+  "/api/demo/medicines/seed-prescription",
+  authenticatePatient,
+  (req, res) => {
+    const medicineIds = ["MED001", "MED003"];
+
+    demoPrescriptions.set(req.patient.id, medicineIds);
+
+    return res.json({
+      message: "Demo prescriptions added.",
+      medicines: medicineCatalogue.filter(
+        medicine => medicineIds.includes(medicine.id)
+      )
+    });
+  }
+);
+
+// Create an order using server-side prices.
+app.post(
+  "/api/medicine-orders",
+  authenticatePatient,
+  (req, res) => {
+    const items = req.body?.items;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Select at least one prescribed medicine."
+      });
+    }
+
+    const prescribedIds = demoPrescriptions.get(req.patient.id) || [];
+    const quantities = new Map();
+
+    for (const item of items) {
+      const { medicineId, quantity } = item || {};
+
+      if (
+        typeof medicineId !== "string" ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 20
+      ) {
+        return res.status(400).json({
+          message: "Each medicine needs a valid quantity between 1 and 20."
+        });
+      }
+
+      if (quantities.has(medicineId)) {
+        return res.status(400).json({
+          message: "Duplicate medicine entries are not allowed."
+        });
+      }
+
+      if (!prescribedIds.includes(medicineId)) {
+        return res.status(403).json({
+          message: "You can purchase only medicines prescribed to you."
+        });
+      }
+
+      const medicine = medicineCatalogue.find(
+        entry => entry.id === medicineId
+      );
+
+      if (!medicine) {
+        return res.status(404).json({
+          message: "Medicine not found."
+        });
+      }
+
+      quantities.set(medicineId, quantity);
+    }
+
+    const orderItems = [...quantities.entries()].map(
+      ([medicineId, quantity]) => {
+        const medicine = medicineCatalogue.find(
+          entry => entry.id === medicineId
+        );
+
+        return {
+          medicineId: medicine.id,
+          name: medicine.name,
+          unitPrice: medicine.price,
+          quantity,
+          subtotal: medicine.price * quantity
+        };
+      }
+    );
+
+    const totalAmount = orderItems.reduce(
+      (total, item) => total + item.subtotal,
+      0
+    );
+
+    const order = {
+      id: crypto.randomUUID(),
+      patientId: req.patient.id,
+      items: orderItems,
+      totalAmount,
+      paymentStatus: "Pending",
+      paymentMode: "Demo simulation",
+      createdAt: new Date().toISOString()
+    };
+
+    demoOrders.push(order);
+
+    return res.status(201).json({
+      message: "Order created. Proceed to demo payment.",
+      order: {
+        id: order.id,
+        items: order.items,
+        totalAmount: order.totalAmount,
+        paymentStatus: order.paymentStatus
+      }
+    });
+  }
+);
+
+// Simulate payment. This does not charge money.
+app.post(
+  "/api/medicine-orders/:id/pay-demo",
+  authenticatePatient,
+  (req, res) => {
+    const order = demoOrders.find(
+      item =>
+        item.id === req.params.id &&
+        item.patientId === req.patient.id
+    );
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found."
+      });
+    }
+
+    if (order.paymentStatus === "Paid (Demo)") {
+      return res.status(409).json({
+        message: "This demo order has already been paid.",
+        order
+      });
+    }
+
+    if (order.paymentStatus !== "Pending") {
+      return res.status(409).json({
+        message: "This order cannot be paid."
+      });
+    }
+
+    // Simulated success; no real payment is processed.
+    order.paymentStatus = "Paid (Demo)";
+    order.paymentReference = `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    order.paidAt = new Date().toISOString();
+
+    return res.json({
+      message: "Demo payment successful. No real money was charged.",
+      payment: {
+        status: order.paymentStatus,
+        reference: order.paymentReference,
+        amount: order.totalAmount,
+        paidAt: order.paidAt
+      },
+      order
+    });
+  }
+);
+
+// Patient can see only their own medicine orders.
+app.get(
+  "/api/medicine-orders/me",
+  authenticatePatient,
+  (req, res) => {
+    const orders = demoOrders.filter(
+      order => order.patientId === req.patient.id
+    );
+
+    return res.json({ orders });
+  }
+);
+
+
 app.listen(process.env.PORT || 5000, () => {
   console.log("Backend running at http://localhost:5000");
 });
