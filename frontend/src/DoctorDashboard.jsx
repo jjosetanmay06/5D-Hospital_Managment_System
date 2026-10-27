@@ -68,8 +68,22 @@ export default function DoctorDashboard({ user, onLogout }) {
   }, [request]);
 
   useEffect(() => {
-    Promise.resolve().then(loadAppointments);
-  }, [loadAppointments]); 
+  let active = true;
+
+  const refreshAppointments = async () => {
+    if (!active) return;
+    await loadAppointments();
+  };
+
+  refreshAppointments();
+
+  const intervalId = setInterval(refreshAppointments, 5000);
+
+  return () => {
+    active = false;
+    clearInterval(intervalId);
+  };
+}, [loadAppointments]); 
 
   const selected = appointments.find(
     (item) => item.id === selectedId
