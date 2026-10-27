@@ -451,3 +451,40 @@
     padding: 24px 18px;
   }
 }
+
+.medical-history-panel {
+  margin-top: 24px;
+}
+
+.medical-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 16px 0 24px;
+}
+
+.medical-history-card {
+  padding: 18px;
+  border: 1px solid #dce6ec;
+  border-radius: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.medical-history-card h4 {
+  margin: 0 0 12px;
+  color: #183247;
+  font-size: 17px;
+}
+
+.medical-history-card p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.medical-history-date {
+  color: #647785;
+  font-size: 13px;
+}
+
+
