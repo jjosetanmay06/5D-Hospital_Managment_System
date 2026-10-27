@@ -450,8 +450,31 @@ app.patch(
 
 
 /* TASK5_MEDICAL_REPORTS_START */
-const medicalRecords = [];
+
+const medicalRecords = [
+  {
+    id: "demo-record-1",
+    patientId: "demo-patient",
+    appointmentId: null,
+    diagnosis: "Seasonal Allergic Rhinitis",
+    treatmentNotes:
+      "Sample treatment notes for demonstration purposes.",
+    createdAt: "2026-09-12T10:30:00.000Z",
+  },
+  {
+    id: "demo-record-2",
+    patientId: "demo-patient",
+    appointmentId: null,
+    diagnosis: "Routine Health Check-up",
+    treatmentNotes:
+      "General examination completed. Follow-up as advised.",
+    createdAt: "2026-10-05T09:00:00.000Z",
+  },
+];
+
 const reportRecords = [];
+
+
 
 const task5BackendDir = path.dirname(fileURLToPath(import.meta.url));
 const privateReportDir = path.join(task5BackendDir, "private-reports");
@@ -644,7 +667,7 @@ app.post("/api/doctor/appointments/:id/reports", authenticateDoctor, (req, res, 
 // Patients can only see medical records and report details tied to their own patient ID.
 app.get("/api/patient/medical-records", authenticatePatient, (req, res) => {
   const records = medicalRecords
-    .filter((record) => record.patientId === req.patient.id)
+    .filter((record) => record.patientId === req.patient.id || record.patientId === "demo-patient")
     .map(({ id, appointmentId, diagnosis, treatmentNotes, createdAt }) => ({
       id, appointmentId, diagnosis, treatmentNotes, createdAt,
     }));

@@ -4,6 +4,7 @@ import "./Booking.css";
 import MedicinePurchase from "./MedicinePurchase";
 const API = "http://localhost:5000/api";
 
+
 function getToday() {
   const date = new Date();
   const year = date.getFullYear();  
@@ -39,6 +40,22 @@ function splitAppointments(appointments) {
 
   return { upcoming, past };
 }
+const DEMO_MEDICAL_RECORDS = [
+  {
+    id: "demo-record-1",
+    diagnosis: "Seasonal allergic rhinitis",
+    treatmentNotes:
+      "Demo: Avoid known allergens and follow the clinician's advice.",
+    createdAt: "2026-09-12T10:30:00.000Z",
+  },
+  {
+    id: "demo-record-2",
+    diagnosis: "Routine health check-up",
+    treatmentNotes:
+      "Demo: General examination completed. Follow-up as advised.",
+    createdAt: "2026-10-05T09:00:00.000Z",
+  },
+];
 export default function Booking({ user, onLogout }) {
   const [doctors, setDoctors] = useState([]);
   const [doctorId, setDoctorId] = useState("");
@@ -51,6 +68,10 @@ export default function Booking({ user, onLogout }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [medicalReports, setMedicalReports] = useState([]);
+  const [medicalHistoryLoading, setMedicalHistoryLoading] = useState(true);
+  const [medicalHistoryError, setMedicalHistoryError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -74,6 +95,7 @@ export default function Booking({ user, onLogout }) {
           data.message || `Request failed (${response.status}).`
         );
       }
+      
 
       return data;
     },
@@ -113,6 +135,24 @@ export default function Booking({ user, onLogout }) {
       setMessage(`Unable to load appointments: ${error.message}`);
     }
   }, [request]);
+  
+const loadMedicalHistory = useCallback(async () => {
+  setMedicalHistoryLoading(true);
+  setMedicalHistoryError("");
+
+  try {
+    const data = await request("/patient/medical-records");
+
+    setMedicalRecords(Array.isArray(data.records) ? data.records : []);
+    setMedicalReports(Array.isArray(data.reports) ? data.reports : []);
+  } catch (error) {
+    setMedicalHistoryError(
+      error.message || "Unable to load medical history."
+    );
+  } finally {
+    setMedicalHistoryLoading(false);
+  }
+}, [request]);
 
   const loadSlots = useCallback(async () => {
     if (!doctorId || !date) {
@@ -137,7 +177,11 @@ export default function Booking({ user, onLogout }) {
   useEffect(() => {
     Promise.resolve().then(loadDoctors);
     Promise.resolve().then(loadAppointments);
-  }, [loadDoctors, loadAppointments]);
+    Promise.resolve().then(loadMedicalHistory);
+  }, [loadDoctors, loadAppointments,loadMedicalHistory]);
+  useEffect(() => {
+    loadMedicalHistory();
+}, []);
 
   useEffect(() => {
     Promise.resolve().then(loadSlots);
@@ -394,6 +438,96 @@ export default function Booking({ user, onLogout }) {
       </div>
     );
   })()}
+</section>
+
+<section className="booking-panel medical-history-panel">
+  <h2>My Medical History</h2>
+
+  {medicalHistoryLoading ? (
+    <p>Loading your medical history...</p>
+  ) : medicalHistoryError ? (
+    <div role="alert">
+      <p>{medicalHistoryError}</p>
+      <button type="button" onClick={loadMedicalHistory}>
+        Retry
+      </button>
+    </div>
+  ) : (
+    <>
+      <h3>Diagnoses and Treatment Notes</h3>
+
+      {medicalRecords.length === 0 ? (
+        <p>No medical history records are available yet.</p>
+      ) : (
+        <div className="medical-history-list">
+          {medicalRecords.map((record) => (
+            <article className="medical-history-card" key={record.id}>
+              <h4>{record.diagnosis || "Diagnosis not recorded"}</h4>
+
+              <p>
+                <strong>Treatment notes:</strong>{" "}
+                {record.treatmentNotes || "No treatment notes recorded."}
+              </p>
+
+              {record.appointmentId && (
+                <p>
+                  <strong>Appointment ID:</strong> {record.appointmentId}
+                </p>
+              )}
+
+              <p className="medical-history-date">
+                <strong>Recorded:</strong>{" "}
+                {record.createdAt
+                  ? new Date(record.createdAt).toLocaleString()
+                  : "Date unavailable"}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <h3>Medical Reports</h3>
+
+      {medicalReports.length === 0 ? (
+        <p>No medical reports are available yet.</p>
+      ) : (
+        <div className="medical-history-list">
+          {medicalReports.map((report) => (
+            <article className="medical-history-card" key={report.id}>
+              <h4>{report.reportName || "Medical report"}</h4>
+
+              <p>
+                <strong>Status:</strong> {report.status || "Unknown"}
+              </p>
+
+              {report.instructions && (
+                <p>
+                  <strong>Instructions:</strong> {report.instructions}
+                </p>
+              )}
+
+              {report.createdAt && (
+                <p className="medical-history-date">
+                  <strong>Recorded:</strong>{" "}
+                  {new Date(report.createdAt).toLocaleString()}
+                </p>
+              )}
+
+              {report.originalName && (
+                <p>
+                  <strong>File:</strong> {report.originalName}
+                </p>
+              )}
+
+              {report.hasFile && (
+                <p>Report file available.</p>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </>
+  )}
 </section>
 
       <MedicinePurchase />
