@@ -473,6 +473,7 @@ const medicalRecords = [
 ];
 
 const reportRecords = [];
+const prescriptionRecords = [];
 
 
 
@@ -617,6 +618,60 @@ app.post("/api/doctor/appointments/:id/diagnoses", authenticateDoctor, (req, res
   return res.status(201).json({ message: "Diagnosis saved.", record });
 });
 
+// Doctor medicine catalogue and prescription management.
+app.get("/api/medicines/catalogue", authenticateDoctor, (_req, res) => {
+  res.json({ medicines: medicineCatalogue });
+});
+
+app.post("/api/doctor/appointments/:id/prescriptions", authenticateDoctor, (req, res) => {
+  const appointment = appointments.find(item =>
+    item.id === req.params.id && item.doctorId === req.doctor.id
+  );
+  if (!appointment) return res.status(404).json({ message: "Assigned appointment not found." });
+  if (appointment.status !== "Booked") {
+    return res.status(409).json({ message: "Only booked appointments can receive prescriptions." });
+  }
+  const { items, notes = "" } = req.body || {};
+  if (!Array.isArray(items) || items.length < 1 || items.length > 20 ||
+      typeof notes !== "string" || notes.length > 3000) {
+    return res.status(400).json({ message: "Provide 1–20 medicines and valid notes." });
+  }
+  const seen = new Set();
+  const prescribed = [];
+  for (const item of items) {
+    const medicine = medicineCatalogue.find(m => m.id === item?.medicineId);
+    const dosage = typeof item?.dosage === "string" ? item.dosage.trim() : "";
+    const frequency = typeof item?.frequency === "string" ? item.frequency.trim() : "";
+    const instructions = typeof item?.instructions === "string" ? item.instructions.trim() : "";
+    if (!medicine || seen.has(medicine.id) || !dosage || !frequency || !instructions ||
+        dosage.length > 200 || frequency.length > 200 || instructions.length > 1000) {
+      return res.status(400).json({ message: "Choose distinct medicines and enter valid dosage, frequency, and instructions." });
+    }
+    seen.add(medicine.id);
+    prescribed.push({ medicineId: medicine.id, name: medicine.name, price: medicine.price,
+      dosage, frequency, instructions });
+  }
+  const prescription = {
+    id: crypto.randomUUID(), appointmentId: appointment.id,
+    patientId: appointment.patientId, doctorId: req.doctor.id,
+    doctorName: doctors.find(d => d.id === req.doctor.id)?.name || "Doctor",
+    items: prescribed, notes: notes.trim(), createdAt: new Date().toISOString()
+  };
+  prescriptionRecords.push(prescription);
+  medicalRecords.push({
+    id: crypto.randomUUID(), appointmentId: appointment.id,
+    patientId: appointment.patientId, doctorId: req.doctor.id,
+    prescriptionId: prescription.id, diagnosis: "Prescription issued",
+    treatmentNotes: prescribed.map(m => `${m.name}: ${m.dosage}; ${m.frequency}; ${m.instructions}`).join("\n"),
+    createdAt: prescription.createdAt
+  });
+  res.status(201).json({ message: "Prescription saved successfully.", prescription });
+});
+
+app.get("/api/prescriptions/me", authenticatePatient, (req, res) => {
+  res.json({ prescriptions: prescriptionRecords.filter(p => p.patientId === req.patient.id) });
+});
+
 // Record a report request/details, optionally with a private PDF/JPEG/PNG attachment.
 app.post("/api/doctor/appointments/:id/reports", authenticateDoctor, (req, res, next) => {
   reportUpload.single("file")(req, res, (uploadError) => {
@@ -734,44 +789,20 @@ const medicineCatalogue = [
 // In-memory demo data. Orders reset when the backend restarts.
 const demoOrders = [];
 
-// Demo prescription mapping.
-// Replace this with actual prescriptions created by doctors.
-// Patients can only access the medicines mapped to their own patient ID.
-const demoPrescriptions = new Map();
-
-// Return the current patient's prescribed medicines.
-app.get(
-  "/api/medicines/prescribed",
-  authenticatePatient,
-  (req, res) => {
-    const medicineIds = demoPrescriptions.get(req.patient.id) || [];
-
-    const medicines = medicineCatalogue.filter(
-      medicine => medicineIds.includes(medicine.id)
-    );
-
-    return res.json({ medicines });
+// Only medicines prescribed by a doctor are available for purchase.
+app.get("/api/medicines/prescribed", authenticatePatient, (req, res) => {
+  const prescriptions = prescriptionRecords.filter(p => p.patientId === req.patient.id);
+  const byMedicine = new Map();
+  for (const prescription of prescriptions) {
+    for (const item of prescription.items) {
+      byMedicine.set(item.medicineId, {
+        ...item, id: item.medicineId, prescriptionId: prescription.id,
+        prescribedAt: prescription.createdAt
+      });
+    }
   }
-);
-
-// Demo-only endpoint to seed sample prescriptions for the logged-in patient.
-// This is for local demonstrations only; remove it before production.
-app.post(
-  "/api/demo/medicines/seed-prescription",
-  authenticatePatient,
-  (req, res) => {
-    const medicineIds = ["MED001", "MED003"];
-
-    demoPrescriptions.set(req.patient.id, medicineIds);
-
-    return res.json({
-      message: "Demo prescriptions added.",
-      medicines: medicineCatalogue.filter(
-        medicine => medicineIds.includes(medicine.id)
-      )
-    });
-  }
-);
+  res.json({ medicines: [...byMedicine.values()], prescriptions });
+});
 
 // Create an order using server-side prices.
 app.post(
@@ -786,7 +817,9 @@ app.post(
       });
     }
 
-    const prescribedIds = demoPrescriptions.get(req.patient.id) || [];
+    const prescribedIds = [...new Set(prescriptionRecords
+      .filter(p => p.patientId === req.patient.id)
+      .flatMap(p => p.items.map(item => item.medicineId)))];
     const quantities = new Map();
 
     for (const item of items) {

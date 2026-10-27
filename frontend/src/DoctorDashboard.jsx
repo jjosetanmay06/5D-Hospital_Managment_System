@@ -15,6 +15,10 @@ export default function DoctorDashboard({ user, onLogout }) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [catalogue, setCatalogue] = useState([]);
+  const emptyMedicine = () => ({ medicineId: "", dosage: "", frequency: "", instructions: "" });
+  const [prescriptionItems, setPrescriptionItems] = useState([emptyMedicine()]);
+  const [prescriptionNotes, setPrescriptionNotes] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -85,6 +89,14 @@ export default function DoctorDashboard({ user, onLogout }) {
   };
 }, [loadAppointments]); 
 
+  useEffect(() => {
+    let active = true;
+    request("/medicines/catalogue")
+      .then(data => { if (active) setCatalogue(Array.isArray(data.medicines) ? data.medicines : []); })
+      .catch(error => { if (active) setMessage(error.message); });
+    return () => { active = false; };
+  }, [request]);
+
   const selected = appointments.find(
     (item) => item.id === selectedId
   );
@@ -148,6 +160,27 @@ export default function DoctorDashboard({ user, onLogout }) {
       event.target.reset();
 
       setMessage(data.message || "Report details saved.");
+      await loadAppointments();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePrescription(event) {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true);
+    setMessage("");
+    try {
+      const data = await request(
+        `/doctor/appointments/${encodeURIComponent(selected.id)}/prescriptions`,
+        { method: "POST", body: JSON.stringify({ items: prescriptionItems, notes: prescriptionNotes }) }
+      );
+      setPrescriptionItems([emptyMedicine()]);
+      setPrescriptionNotes("");
+      setMessage(data.message || "Prescription saved.");
       await loadAppointments();
     } catch (error) {
       setMessage(error.message);
@@ -410,6 +443,49 @@ export default function DoctorDashboard({ user, onLogout }) {
             </form>
           </section>
         </div>
+      )}
+
+      {selected && (
+        <section className="doctor-panel prescription-panel">
+          <h2>Create prescription</h2>
+          <p>Patient: <strong>{selected.patientName}</strong></p>
+          <form onSubmit={savePrescription}>
+            {prescriptionItems.map((item, index) => (
+              <fieldset className="prescription-item" key={index}>
+                <legend>Medicine {index + 1}</legend>
+                <label htmlFor={`prescribed-medicine-${index}`}>Medicine</label>
+                <select id={`prescribed-medicine-${index}`} required value={item.medicineId}
+                  onChange={event => setPrescriptionItems(current => current.map((entry, i) =>
+                    i === index ? { ...entry, medicineId: event.target.value } : entry))}>
+                  <option value="">Choose a medicine</option>
+                  {catalogue.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                {[["dosage", "Dosage"], ["frequency", "Frequency"], ["instructions", "Instructions"]].map(([field, label]) => (
+                  <label key={field}>{label}
+                    <input required value={item[field]} maxLength={field === "instructions" ? 1000 : 200}
+                      onChange={event => setPrescriptionItems(current => current.map((entry, i) =>
+                        i === index ? { ...entry, [field]: event.target.value } : entry))} />
+                  </label>
+                ))}
+                {prescriptionItems.length > 1 && (
+                  <button type="button" onClick={() => setPrescriptionItems(current => current.filter((_, i) => i !== index))}>
+                    Remove medicine
+                  </button>
+                )}
+              </fieldset>
+            ))}
+            <button type="button" disabled={prescriptionItems.length >= 20}
+              onClick={() => setPrescriptionItems(current => [...current, emptyMedicine()])}>
+              Add another medicine
+            </button>
+            <label htmlFor="prescription-notes">Additional notes</label>
+            <textarea id="prescription-notes" rows={3} maxLength={3000}
+              value={prescriptionNotes} onChange={event => setPrescriptionNotes(event.target.value)} />
+            <button type="submit" disabled={saving || !catalogue.length || selected.status !== "Booked"}>
+              {saving ? "Saving..." : "Save prescription"}
+            </button>
+          </form>
+        </section>
       )}
     </main>
   );
