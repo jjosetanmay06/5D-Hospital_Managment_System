@@ -12,7 +12,33 @@ function getToday() {
 
   return `${year}-${month}-${day}`;
 }
+function splitAppointments(appointments) {
+  const today = getToday();
 
+  const upcoming = [];
+  const past = [];
+
+  appointments.forEach((appointment) => {
+    const date = String(appointment.date || "").slice(0, 10);
+    const status = String(appointment.status || "").toLowerCase();
+
+    if (status === "cancelled" || !date || date < today) {
+      past.push(appointment);
+    } else {
+      upcoming.push(appointment);
+    }
+  });
+
+  upcoming.sort((a, b) =>
+    `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+  );
+
+  past.sort((a, b) =>
+    `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)
+  );
+
+  return { upcoming, past };
+}
 export default function Booking({ user, onLogout }) {
   const [doctors, setDoctors] = useState([]);
   const [doctorId, setDoctorId] = useState("");
@@ -292,59 +318,84 @@ export default function Booking({ user, onLogout }) {
         </form>
       </section>
 
-      <section className="booking-panel">
-        <h2>My appointments</h2>
+     
+<section className="booking-panel">
+  <h2>Upcoming appointments</h2>
 
-        {appointments.length === 0 ? (
-          <p>You have no appointments yet.</p>
-        ) : (
-          <div className="appointment-list">
-            {appointments.map((appointment) => {
-              const isBooked =
-                String(appointment.status).toLowerCase() === "booked";
-              const isCancelling = cancellingId === appointment.id;
+  {(() => {
+    const { upcoming } = splitAppointments(appointments);
 
-              return (
-                <article
-                  className="appointment-card"
-                  key={appointment.id}
-                >
-                  <div className="appointment-details">
-                    <h3>{appointment.doctorName}</h3>
-                    <p>{appointment.specialty}</p>
-                    <p>
-                      {appointment.date} at {appointment.time}
-                    </p>
-                  </div>
+    return upcoming.length === 0 ? (
+      <p>You have no upcoming appointments.</p>
+    ) : (
+      <div className="appointment-list">
+        {upcoming.map((appointment) => (
+          <article className="appointment-card" key={appointment.id}>
+            <div className="appointment-details">
+              <h3>{appointment.doctorName}</h3>
+              <p>{appointment.specialty}</p>
+              <p>{appointment.date} at {appointment.time}</p>
+            </div>
 
-                  <div className="appointment-actions">
-                    <span
-                      className={`appointment-status ${
-                        isBooked ? "booked" : "cancelled"
-                      }`}
-                    >
-                      {appointment.status}
-                    </span>
+            <div className="appointment-actions">
+              <span className="appointment-status booked">
+                {appointment.status}
+              </span>
 
-                    {isBooked && (
-                      <button
-                        className="cancel-button"
-                        type="button"
-                        onClick={() => cancelAppointment(appointment)}
-                        disabled={Boolean(cancellingId)}
-                      >
-                        {isCancelling
-                          ? "Cancelling..."
-                          : "Cancel appointment"}
-                      </button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+              <button
+                className="cancel-button"
+                type="button"
+                onClick={() => cancelAppointment(appointment)}
+                disabled={Boolean(cancellingId)}
+              >
+                {cancellingId === appointment.id
+                  ? "Cancelling..."
+                  : "Cancel appointment"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    );
+  })()}
+</section>
+
+<section className="booking-panel">
+  <h2>Past appointments</h2>
+
+  {(() => {
+    const { past } = splitAppointments(appointments);
+
+    return past.length === 0 ? (
+      <p>You have no past appointments.</p>
+    ) : (
+      <div className="appointment-list">
+        {past.map((appointment) => (
+          <article className="appointment-card" key={appointment.id}>
+            <div className="appointment-details">
+              <h3>{appointment.doctorName}</h3>
+              <p>{appointment.specialty}</p>
+              <p>{appointment.date} at {appointment.time}</p>
+            </div>
+
+            <div className="appointment-actions">
+              <span
+                className={`appointment-status ${
+                  String(appointment.status).toLowerCase() === "cancelled"
+                    ? "cancelled"
+                    : "booked"
+                }`}
+              >
+                {appointment.status}
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    );
+  })()}
+</section>
+
       <MedicinePurchase />
     </main>
   );
