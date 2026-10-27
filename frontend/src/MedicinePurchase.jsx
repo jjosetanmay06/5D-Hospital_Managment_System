@@ -1,318 +1,127 @@
-
 import { useCallback, useEffect, useState } from "react";
 import "./MedicinePurchase.css";
-
 const API = "http://localhost:5000/api";
 
 export default function MedicinePurchase() {
   const [medicines, setMedicines] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [quantities, setQuantities] = useState({});
+  const [selectedItems, setSelectedItems] = useState({});
   const [orders, setOrders] = useState([]);
+  const [checkoutOrder, setCheckoutOrder] = useState(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [payingId, setPayingId] = useState("");
-  const [selectedItems, setSelectedItems] = useState({});
-  const [checkoutOrder, setCheckoutOrder] = useState(null);
-  const [processing, setProcessing] = useState(false);
-
   const token = localStorage.getItem("token");
-
   const request = useCallback(async (path, options = {}) => {
     const response = await fetch(`${API}${path}`, {
       ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(options.body
-          ? { "Content-Type": "application/json" }
-          : {}),
-        ...options.headers,
-      },
+      headers: { Authorization: `Bearer ${token}`,
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers },
     });
-
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.message || `Request failed (${response.status})`);
-    }
+    if (!response.ok) throw new Error(data.message || `Request failed (${response.status})`);
     return data;
   }, [token]);
 
-  const loadMedicines = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      const data = await request("/medicines/prescribed");
-      setMedicines(Array.isArray(data.medicines) ? data.medicines : []);
-      setMessage("");
-    } catch (error) {
-      setMessage(`Unable to load prescription: ${error.message}`);
-    }
+      const [medicineData, orderData] = await Promise.all([
+        request("/medicines/prescribed"), request("/medicine-orders/me")
+      ]);
+      setMedicines(Array.isArray(medicineData.medicines) ? medicineData.medicines : []);
+      setPrescriptions(Array.isArray(medicineData.prescriptions) ? medicineData.prescriptions : []);
+      setOrders(Array.isArray(orderData.orders) ? orderData.orders : []);
+    } catch (error) { setMessage(error.message); }
   }, [request]);
 
-  const loadOrders = useCallback(async () => {
-    try {
-      const data = await request("/medicine-orders/me");
-      setOrders(Array.isArray(data.orders) ? data.orders : []);
-    } catch (error) {
-      setMessage(`Unable to load orders: ${error.message}`);
-    }
-  }, [request]);
-
-  useEffect(() => {
-    loadMedicines();
-    loadOrders();
-  }, [loadMedicines, loadOrders]);
-
-  async function loadSamplePrescription() {
-    setLoading(true);
-    setMessage("");
-    try {
-      const data = await request("/demo/medicines/seed-prescription", {
-        method: "POST",
-      });
-      setMessage(data.message || "Sample prescription loaded.");
-      await loadMedicines();
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function toggleMedicine(id) {
-    setSelectedItems((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  }
-
-  function changeQuantity(id, value) {
-    const quantity = Math.max(1, Math.min(20, Number(value) || 1));
-    setQuantities((current) => ({ ...current, [id]: quantity }));
-  }
-
-  const cart = medicines
-    .filter((medicine) => selectedItems[medicine.id || medicine.medicineId])
-    .map((medicine) => {
-      const id = medicine.id || medicine.medicineId;
-      return {
-        medicineId: id,
-        name: medicine.name || medicine.medicineName || id,
-        price: Number(medicine.price || 0),
-        quantity: quantities[id] || 1,
-      };
-    });
-
-  const total = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-
+  useEffect(() => { refresh(); }, [refresh]);
+  const cart = medicines.filter(m => selectedItems[m.id]).map(m => ({
+    medicineId: m.id, name: m.name, quantity: quantities[m.id] || 1, price: Number(m.price || 0)
+  }));
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   async function createOrder() {
-    if (cart.length === 0) {
-      setMessage("Select at least one prescribed medicine.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
+    if (!cart.length) return;
+    setLoading(true); setMessage("");
     try {
       const data = await request("/medicine-orders", {
-        method: "POST",
-        body: JSON.stringify({
-          items: cart.map(({ medicineId, quantity }) => ({
-            medicineId,
-            quantity,
-          })),
-        }),
+        method: "POST", body: JSON.stringify({ items: cart.map(({ medicineId, quantity }) => ({ medicineId, quantity })) })
       });
-      setCheckoutOrder(data.order || data);
-      setMessage("Order created. Review it before simulated payment.");
-      await loadOrders();
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
+      setCheckoutOrder(data.order);
+      setMessage("Order created. Complete the simulated payment below.");
+      await refresh();
+    } catch (error) { setMessage(error.message); }
+    finally { setLoading(false); }
   }
-
   async function payDemo(order) {
-    const id = order.id || order.orderId;
-    if (!id) {
-      setMessage("Order ID is missing. Please create the order again.");
-      return;
-    }
-
-    setPayingId(id);
-    setProcessing(true);
-    setMessage("Processing demo payment...");
+    setPayingId(order.id); setMessage("Processing demo payment...");
     try {
-      // Brief UI delay to demonstrate a payment-processing screen.
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      const data = await request(
-        `/medicine-orders/${encodeURIComponent(id)}/pay-demo`,
-        { method: "POST" }
-      );
-      setMessage(
-        `${data.message || "Demo payment successful."}${
-          data.reference ? ` Reference: ${data.reference}` : ""
-        } No real money was charged.`
-      );
-      setCheckoutOrder(null);
-      setSelectedItems({});
-      await loadOrders();
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setPayingId("");
-      setProcessing(false);
-    }
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      const data = await request(`/medicine-orders/${encodeURIComponent(order.id)}/pay-demo`, { method: "POST" });
+      setMessage(`${data.message || "Demo payment successful."} Reference: ${data.payment?.reference || "N/A"}`);
+      setCheckoutOrder(null); setSelectedItems({}); await refresh();
+    } catch (error) { setMessage(error.message); }
+    finally { setPayingId(""); }
   }
-
-  function orderId(order) {
-    return order.id || order.orderId || "—";
-  }
-
   return (
     <section className="booking-panel medicine-panel">
       <h2>Medicine Purchase</h2>
-      <p className="medicine-demo-note">
-        Demo mode: payments are simulated. No real money is charged.
-      </p>
-
-      <button
-        className="book-button"
-        type="button"
-        onClick={loadSamplePrescription}
-        disabled={loading}
-      >
-        {loading ? "Loading..." : "Load Sample Prescription (Demo)"}
-      </button>
-
-      {message && (
-        <p className="booking-message" role="status" aria-live="polite">
-          {message}
-        </p>
-      )}
-
+      <p className="medicine-demo-note">Demo mode: payments are simulated. No real money is charged.</p>
+      <button type="button" className="book-button" onClick={refresh}>Refresh prescriptions</button>
+      {message && <p className="booking-message" role="status" aria-live="polite">{message}</p>}
+      <h3 className="medicine-subheading">My prescriptions</h3>
+      {prescriptions.length === 0 ? <p>No prescription saved by your doctor yet.</p> :
+        prescriptions.map(p => (
+          <article className="medicine-card" key={p.id}>
+            <div><strong>{p.doctorName}</strong>
+              <p>Prescribed: {new Date(p.createdAt).toLocaleString()}</p>
+              {p.notes && <p>Notes: {p.notes}</p>}
+              {p.items.map(item => <p key={item.medicineId}>{item.name} — Dosage: {item.dosage}; Frequency: {item.frequency}; Instructions: {item.instructions}</p>)}
+            </div>
+          </article>
+        ))}
       <h3 className="medicine-subheading">Your prescribed medicines</h3>
-
-      {medicines.length === 0 ? (
-        <p>
-          No prescription found yet. Click “Load Sample Prescription (Demo)”
-          to load sample medicines for testing.
-        </p>
-      ) : (
-        <div className="medicine-list">
-          {medicines.map((medicine) => {
-            const id = medicine.id || medicine.medicineId;
-            const name = medicine.name || medicine.medicineName || id;
-            const price = Number(medicine.price || 0);
-
-            return (
-              <article className="medicine-card" key={id}>
-                <label className="medicine-select">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selectedItems[id])}
-                    onChange={() => toggleMedicine(id)}
-                  />
-                  <span>
-                    <strong>{name}</strong>
-                    <small>Medicine ID: {id}</small>
-                  </span>
-                </label>
-
-                <div className="medicine-price">
-                  <strong>₹{price.toFixed(2)}</strong>
-                  <label>
-                    Qty
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={quantities[id] || 1}
-                      onChange={(event) =>
-                        changeQuantity(id, event.target.value)
-                      }
-                      disabled={!selectedItems[id]}
-                    />
-                  </label>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="medicine-total">
-        <span>Selected items: {cart.length}</span>
-        <strong>Total: ₹{total.toFixed(2)}</strong>
-      </div>
-
-      <button
-        className="book-button"
-        type="button"
-        onClick={createOrder}
-        disabled={loading || cart.length === 0}
-      >
+      {medicines.length === 0 ? <p>No prescribed medicines available. Ask your doctor to create a prescription.</p> :
+        <div className="medicine-list">{medicines.map(m => (
+          <article className="medicine-card" key={m.id}>
+            <label className="medicine-select">
+              <input type="checkbox" checked={Boolean(selectedItems[m.id])}
+                onChange={() => setSelectedItems(current => ({ ...current, [m.id]: !current[m.id] }))} />
+              <span><strong>{m.name}</strong><small>Dosage: {m.dosage}</small><small>Frequency: {m.frequency}</small><small>Instructions: {m.instructions}</small></span>
+            </label>
+            <div className="medicine-price"><strong>₹{Number(m.price).toFixed(2)}</strong>
+              <label>Qty <input type="number" min="1" max="20" value={quantities[m.id] || 1}
+                disabled={!selectedItems[m.id]}
+                onChange={event => setQuantities(current => ({ ...current,
+                  [m.id]: Math.max(1, Math.min(20, Number(event.target.value) || 1)) }))} /></label>
+            </div>
+          </article>
+        ))}</div>}
+      <div className="medicine-total"><span>Selected items: {cart.length}</span><strong>Total: ₹{total.toFixed(2)}</strong></div>
+      <button type="button" className="book-button" disabled={loading || !cart.length} onClick={createOrder}>
         {loading ? "Creating order..." : "Proceed to Checkout"}
       </button>
-
-      {checkoutOrder && (
-        <div className="demo-checkout">
-          <h3>Checkout</h3>
-          <p>
-            Order ID: <strong>{orderId(checkoutOrder)}</strong>
-          </p>
-          <p>
-            Amount to pay:{" "}
-            <strong>
-              ₹{Number(checkoutOrder.total ?? total).toFixed(2)}
-            </strong>
-          </p>
-          <p>This is a simulated payment. No card or bank details are needed.</p>
-          <button
-            className="book-button"
-            type="button"
-            onClick={() => payDemo(checkoutOrder)}
-            disabled={processing}
-          >
-            {processing ? "Processing payment..." : "Pay Now (Demo)"}
-          </button>
-        </div>
-      )}
-
+      {checkoutOrder && <div className="demo-checkout"><h3>Checkout</h3>
+        <p>Order ID: {checkoutOrder.id}</p>
+        <p>Amount: ₹{Number(checkoutOrder.totalAmount).toFixed(2)}</p>
+        <p>No real money will be charged.</p>
+        <button type="button" className="book-button" disabled={Boolean(payingId)} onClick={() => payDemo(checkoutOrder)}>
+          {payingId ? "Processing payment..." : "Pay Now (Demo)"}
+        </button>
+      </div>}
       <h3 className="medicine-subheading">My medicine orders</h3>
-      {orders.length === 0 ? (
-        <p>No medicine orders yet.</p>
-      ) : (
-        <div className="medicine-list">
-          {orders.map((order) => (
-            <article className="medicine-card" key={orderId(order)}>
-              <div>
-                <strong>Order {orderId(order)}</strong>
-                <p>
-                  Amount: ₹{Number(order.total || 0).toFixed(2)}
-                </p>
-                <small>
-                  Status: {order.paymentStatus || order.status || "Pending"}
-                </small>
-                {order.reference && (
-                  <p>Transaction reference: {order.reference}</p>
-                )}
-              </div>
-              {String(order.paymentStatus || "").toLowerCase() === "pending" && (
-                <button
-                  type="button"
-                  className="medicine-pay-button"
-                  onClick={() => payDemo(order)}
-                  disabled={Boolean(payingId)}
-                >
-                  {payingId === orderId(order) ? "Processing..." : "Pay (Demo)"}
-                </button>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+      {orders.length === 0 ? <p>No medicine orders yet.</p> :
+        <div className="medicine-list">{orders.map(order => <article className="medicine-card" key={order.id}>
+          <div><strong>Order {order.id}</strong><p>Amount: ₹{Number(order.totalAmount).toFixed(2)}</p>
+            <small>Status: {order.paymentStatus}</small>
+            {order.paymentReference && <p>Transaction reference: {order.paymentReference}</p>}
+          </div>
+          {order.paymentStatus === "Pending" && <button type="button" className="medicine-pay-button"
+            disabled={Boolean(payingId)} onClick={() => payDemo(order)}>
+            {payingId === order.id ? "Processing..." : "Pay (Demo)"}
+          </button>}
+        </article>)}</div>}
     </section>
   );
 }

@@ -24,3 +24,11 @@
 .doctor-panel textarea { resize: vertical; }
 .doctor-panel button[type="submit"]:disabled { opacity: .65; cursor: wait; }
 @media (max-width: 760px) { .doctor-header { flex-direction: column; } .doctor-appointment-grid, .doctor-form-grid { grid-template-columns: 1fr; } }
+
+/* Prescription management */
+.prescription-panel { margin-top: 4px; }
+.prescription-item { border: 1px solid #dce4ea; border-radius: 10px; padding: 16px; margin: 12px 0; min-width: 0; }
+.prescription-item legend { font-weight: 700; padding: 0 6px; }
+.prescription-item label { display: block; }
+.prescription-item select, .doctor-panel select { box-sizing: border-box; width: 100%; padding: 11px 12px; border: 1px solid #cbd5df; border-radius: 8px; font: inherit; background: white; }
+.prescription-item button[type="button"], .prescription-panel button[type="button"] { padding: 10px 14px; border: 1px solid #176b68; border-radius: 8px; background: white; color: #176b68; cursor: pointer; }
