@@ -487,4 +487,34 @@
   font-size: 13px;
 }
 
+.patient-bills-panel .bill-details {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #d8e0e8;
+  border-radius: 10px;
+}
+
+.patient-bills-panel .bill-items {
+  margin: 12px 0;
+}
+
+.patient-bills-panel .bill-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.patient-bills-panel .bill-item p {
+  margin: 4px 0 0;
+}
+
+.patient-bills-panel .bill-details > p {
+  overflow-wrap: anywhere;
+}
+
 
