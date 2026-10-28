@@ -967,6 +967,110 @@ app.get(
   }
 );
 
+/* PATIENT BILLS */
+
+app.get("/api/patient/bills/me", authenticatePatient, (req, res) => {
+  const patientOrders = demoOrders.filter(
+    (order) => order.patientId === req.patient.id
+  );
+
+  const bills = patientOrders.map((order) => ({
+    id: order.id,
+    billNumber: `BILL-${order.id.slice(0, 8).toUpperCase()}`,
+    date: order.createdAt,
+    items: order.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+    })),
+    totalAmount: order.totalAmount,
+    paymentStatus:
+      order.paymentStatus === "Paid (Demo)" ? "Paid" : "Pending",
+    paymentMode: order.paymentMode,
+    paidAt: order.paidAt || null,
+  }));
+
+  bills.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return res.json({ bills });
+});
+
+
+app.post("/api/patient/bills/demo", authenticatePatient, (req, res) => {
+  const patientId = req.patient.id;
+
+  // Avoid creating duplicate demo bills for the same patient.
+  const existingDemoBills = demoOrders.filter(
+    (order) =>
+      order.patientId === patientId &&
+      order.demoSource === "patient-bills-demo"
+  );
+
+  if (existingDemoBills.length > 0) {
+    return res.json({
+      message: "Demo bills are already available.",
+      bills: existingDemoBills,
+    });
+  }
+
+  const now = Date.now();
+
+  const pendingBill = {
+    id: crypto.randomUUID(),
+    patientId,
+    items: [
+      {
+        medicineId: "DEMO001",
+        name: "Demo Consultation Medicine",
+        unitPrice: 150,
+        quantity: 1,
+        subtotal: 150,
+      },
+      {
+        medicineId: "DEMO002",
+        name: "Demo Health Supplies",
+        unitPrice: 100,
+        quantity: 2,
+        subtotal: 200,
+      },
+    ],
+    totalAmount: 350,
+    paymentStatus: "Pending",
+    paymentMode: "Demo only",
+    createdAt: new Date(now - 86400000).toISOString(),
+    paidAt: null,
+    demoSource: "patient-bills-demo",
+  };
+
+  const paidBill = {
+    id: crypto.randomUUID(),
+    patientId,
+    items: [
+      {
+        medicineId: "DEMO003",
+        name: "Demo Prescription Medicine",
+        unitPrice: 120,
+        quantity: 1,
+        subtotal: 120,
+      },
+    ],
+    totalAmount: 120,
+    paymentStatus: "Paid (Demo)",
+    paymentMode: "Demo only",
+    createdAt: new Date(now - 172800000).toISOString(),
+    paidAt: new Date(now - 172800000 + 3600000).toISOString(),
+    demoSource: "patient-bills-demo",
+  };
+
+  demoOrders.push(pendingBill, paidBill);
+
+  return res.status(201).json({
+    message: "Two sample bills created. No real payment was processed.",
+    bills: [pendingBill, paidBill],
+  });
+});
+
 
 app.listen(process.env.PORT || 5000, () => {
   console.log("Backend running at http://localhost:5000");

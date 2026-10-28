@@ -72,6 +72,10 @@ export default function Booking({ user, onLogout }) {
   const [medicalReports, setMedicalReports] = useState([]);
   const [medicalHistoryLoading, setMedicalHistoryLoading] = useState(true);
   const [medicalHistoryError, setMedicalHistoryError] = useState("");
+  const [bills, setBills] = useState([]);
+  const [billsLoading, setBillsLoading] = useState(true);
+  const [billsError, setBillsError] = useState("");
+  const [expandedBillId, setExpandedBillId] = useState(null);
 
   const token = localStorage.getItem("token");
 
@@ -154,6 +158,37 @@ const loadMedicalHistory = useCallback(async () => {
   }
 }, [request]);
 
+const loadBills = useCallback(async () => {
+  setBillsLoading(true);
+  setBillsError("");
+
+  try {
+    const data = await request("/patient/bills/me");
+    setBills(Array.isArray(data.bills) ? data.bills : []);
+  } catch (error) {
+    setBillsError(error.message || "Unable to load bills.");
+  } finally {
+    setBillsLoading(false);
+  }
+}, [request]);
+const loadDemoBills = useCallback(async () => {
+  setBillsLoading(true);
+  setBillsError("");
+
+  try {
+    await request("/patient/bills/demo", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+
+    await loadBills();
+  } catch (error) {
+    setBillsError(error.message || "Unable to create demo bills.");
+  } finally {
+    setBillsLoading(false);
+  }
+}, [request, loadBills]);
+
   const loadSlots = useCallback(async () => {
     if (!doctorId || !date) {
       setSlots([]);
@@ -178,7 +213,8 @@ const loadMedicalHistory = useCallback(async () => {
     Promise.resolve().then(loadDoctors);
     Promise.resolve().then(loadAppointments);
     Promise.resolve().then(loadMedicalHistory);
-  }, [loadDoctors, loadAppointments,loadMedicalHistory]);
+    Promise.resolve().then(loadBills);
+  }, [loadDoctors, loadAppointments,loadMedicalHistory,loadBills]);
   useEffect(() => {
     loadMedicalHistory();
 }, []);
@@ -527,6 +563,123 @@ const loadMedicalHistory = useCallback(async () => {
         </div>
       )}
     </>
+  )}
+</section>
+
+<section className="booking-panel patient-bills-panel">
+  <h2>My Bills</h2>
+  <p>View your medicine orders, bill details, and payment status.</p>
+
+  {billsLoading ? (
+    <p>Loading your bills...</p>
+  ) : billsError ? (
+    <div role="alert">
+      <p>{billsError}</p>
+      <button type="button" onClick={loadBills}>
+        Retry
+      </button>
+    </div>
+  ) : bills.length === 0 ? (
+    <div className="empty-bills">
+      <p>You don't have any bills yet.</p>
+      <p>
+        Load sample bills to see how pending and completed bills
+        appear in your account.
+      </p>
+
+      <button
+        type="button"
+        onClick={loadDemoBills}
+        disabled={billsLoading}
+      >
+        {billsLoading ? "Loading demo bills..." : "Load Demo Bills"}
+      </button>
+    </div>
+  ) : (
+    <div className="appointment-list">
+      {bills.map((bill) => (
+        <article className="appointment-card" key={bill.id}>
+          <div className="appointment-details">
+            <h3>{bill.billNumber}</h3>
+
+            <p>
+              Date:{" "}
+              {bill.date
+                ? new Date(bill.date).toLocaleDateString()
+                : "Unavailable"}
+            </p>
+
+            <p>
+              Total: ₹{Number(bill.totalAmount).toFixed(2)}
+            </p>
+
+            <p>
+              Payment status:{" "}
+              <strong>{bill.paymentStatus}</strong>
+            </p>
+          </div>
+
+          <div className="appointment-actions">
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedBillId(
+                  expandedBillId === bill.id ? null : bill.id
+                )
+              }
+              aria-expanded={expandedBillId === bill.id}
+            >
+              {expandedBillId === bill.id
+                ? "Hide details"
+                : "View bill"}
+            </button>
+          </div>
+
+          {expandedBillId === bill.id && (
+            <div className="bill-details">
+              <h4>Bill details</h4>
+
+              <div className="bill-items">
+                {bill.items.map((item, index) => (
+                  <div
+                    className="bill-item"
+                    key={`${bill.id}-${item.name}-${index}`}
+                  >
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>
+                        {item.quantity} × ₹
+                        {Number(item.unitPrice).toFixed(2)}
+                      </p>
+                    </div>
+
+                    <strong>
+                      ₹{Number(item.subtotal).toFixed(2)}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+
+              <p>
+                <strong>Total amount: </strong>
+                ₹{Number(bill.totalAmount).toFixed(2)}
+              </p>
+
+              {bill.paidAt && (
+                <p>
+                  <strong>Paid on: </strong>
+                  {new Date(bill.paidAt).toLocaleString()}
+                </p>
+              )}
+
+              {bill.paymentStatus === "Paid" && (
+                <p>This order is marked as paid in the demo system.</p>
+              )}
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
   )}
 </section>
 
