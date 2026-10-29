@@ -76,6 +76,9 @@ export default function Booking({ user, onLogout }) {
   const [billsLoading, setBillsLoading] = useState(true);
   const [billsError, setBillsError] = useState("");
   const [expandedBillId, setExpandedBillId] = useState(null);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescriptionError, setPrescriptionError] = useState("");
+  const [downloadError, setDownloadError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -128,6 +131,38 @@ export default function Booking({ user, onLogout }) {
       setLoadingDoctors(false);
     }
   }, [request]);
+  const loadPrescriptions = useCallback(async () => {
+    setPrescriptionError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        throw new Error("Please log in again.");
+      }
+
+      const response = await fetch(`${API}/prescriptions/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to load prescriptions.");
+      }
+
+      setPrescriptions(
+        Array.isArray(data.prescriptions) ? data.prescriptions : []
+      );
+    } catch (error) {
+      setPrescriptionError(
+        error.message || "Unable to load prescriptions."
+      );
+    }
+  }, []);
+
 
   const loadAppointments = useCallback(async () => {
     try {
@@ -171,6 +206,100 @@ const loadBills = useCallback(async () => {
     setBillsLoading(false);
   }
 }, [request]);
+
+async function downloadMedicalReport(report) {
+  setDownloadError("");
+
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      throw new Error("Please log in again to download this report.");
+    }
+
+    const response = await fetch(
+      `${API}/reports/${encodeURIComponent(report.id)}/download`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.message || "Unable to download report.");
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = report.originalName || "medical-report";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    setDownloadError(
+      error.message || "Unable to download report."
+    );
+  }
+}
+
+async function downloadPrescription(prescription) {
+  setPrescriptionError("");
+
+  try {
+    // Export the prescription data returned for the logged-in patient.
+    const content = JSON.stringify(prescription, null, 2);
+    const blob = new Blob([content], {
+      type: "application/json;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `prescription-${prescription.id || "details"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    setPrescriptionError("Unable to download prescription.");
+  }
+}
+function downloadBill(bill) {
+  const lines = [
+    "CAREPOINT HOSPITAL - DEMO BILL",
+    `Bill number: ${bill.billNumber}`,
+    `Date: ${bill.date ? new Date(bill.date).toLocaleString() : "Unavailable"}`,
+    `Payment status: ${bill.paymentStatus}`,
+    "",
+    "Items:",
+    ...bill.items.map(
+      (i) =>
+        `- ${i.name}: ${i.quantity} x ${Number(i.unitPrice).toFixed(2)} = ${Number(i.subtotal).toFixed(2)}`
+    ),
+    "",
+    `Total: ${Number(bill.totalAmount).toFixed(2)}`,
+  ];
+
+  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${bill.billNumber || "bill"}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 const loadDemoBills = useCallback(async () => {
   setBillsLoading(true);
   setBillsError("");
@@ -214,11 +343,8 @@ const loadDemoBills = useCallback(async () => {
     Promise.resolve().then(loadAppointments);
     Promise.resolve().then(loadMedicalHistory);
     Promise.resolve().then(loadBills);
-  }, [loadDoctors, loadAppointments,loadMedicalHistory,loadBills]);
-  useEffect(() => {
-    loadMedicalHistory();
-}, []);
-
+    Promise.resolve().then(loadPrescriptions);
+  }, [loadDoctors, loadAppointments,loadMedicalHistory,loadBills,loadPrescriptions]);
   useEffect(() => {
     Promise.resolve().then(loadSlots);
   }, [loadSlots]);
@@ -523,6 +649,11 @@ const loadDemoBills = useCallback(async () => {
       )}
 
       <h3>Medical Reports</h3>
+      {downloadError && (
+        <p role="alert" className="error-message">
+          {downloadError}
+        </p>
+      )}
 
       {medicalReports.length === 0 ? (
         <p>No medical reports are available yet.</p>
@@ -535,7 +666,14 @@ const loadDemoBills = useCallback(async () => {
               <p>
                 <strong>Status:</strong> {report.status || "Unknown"}
               </p>
-
+              {report.hasFile && (
+                <button
+                  type="button"
+                  onClick={() => downloadMedicalReport(report)}
+                >
+                  Download Report
+                </button>
+              )}
               {report.instructions && (
                 <p>
                   <strong>Instructions:</strong> {report.instructions}
@@ -633,6 +771,9 @@ const loadDemoBills = useCallback(async () => {
                 ? "Hide details"
                 : "View bill"}
             </button>
+            <button type="button" onClick={() => downloadBill(bill)}>
+              Download bill
+            </button>
           </div>
 
           {expandedBillId === bill.id && (
@@ -682,6 +823,62 @@ const loadDemoBills = useCallback(async () => {
     </div>
   )}
 </section>
+
+<section className="booking-panel">
+  <h2>My Prescriptions</h2>
+
+  {prescriptionError && (
+    <p role="alert">{prescriptionError}</p>
+  )}
+
+  {prescriptions.length === 0 ? (
+    <p>No prescriptions are available yet.</p>
+  ) : (
+    <div className="appointment-list">
+      {prescriptions.map((prescription, index) => (
+        <article
+          className="appointment-card"
+          key={prescription.id || index}
+        >
+          <div className="appointment-details">
+            <h3>
+              {prescription.medicineName ||
+                prescription.name ||
+                "Prescription"}
+            </h3>
+
+            {prescription.instructions && (
+              <p>Instructions: {prescription.instructions}</p>
+            )}
+
+            {prescription.dosage && (
+              <p>Dosage: {prescription.dosage}</p>
+            )}
+
+            {prescription.createdAt && (
+              <p>
+                Date:{" "}
+                {new Date(
+                  prescription.createdAt
+                ).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+
+          <div className="appointment-actions">
+            <button
+              type="button"
+              onClick={() => downloadPrescription(prescription)}
+            >
+              Download Prescription
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  )}
+</section>
+
 
       <MedicinePurchase />
     </main>
