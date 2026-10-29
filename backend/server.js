@@ -16,6 +16,70 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 24) {
   throw new Error("Set JWT_SECRET to at least 24 characters in .env");
 }
 
+
+function createDemoMedicalReportPdf(filePath) {
+  const escapePdf = (text) =>
+    text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+
+  const lines = [
+    "CAREPOINT HOSPITAL",
+    "DEMO MEDICAL REPORT",
+    "",
+    "Report: General Health Check-up",
+    "Date: 5 October 2026",
+    "",
+    "This sample report demonstrates the medical",
+    "file download feature of the application.",
+    "",
+    "This report contains fictional demonstration",
+    "data and is not a real clinical document.",
+    "Do not use it for medical diagnosis or treatment."
+  ];
+
+  let content = "BT\n/F1 18 Tf\n72 750 Td\n";
+
+  lines.forEach((line, index) => {
+    if (index === 1) content += "/F1 14 Tf\n";
+    if (index > 0) content += "0 -28 Td\n";
+    content += `(${escapePdf(line)}) Tj\n`;
+  });
+
+  content += "ET";
+
+  const streamLength = Buffer.byteLength(content, "ascii");
+
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${streamLength} >>\nstream\n${content}\nendstream`
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, "ascii"));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefOffset = Buffer.byteLength(pdf, "ascii");
+
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n`;
+  pdf += `startxref\n${xrefOffset}\n%%EOF`;
+
+  fs.writeFileSync(filePath, Buffer.from(pdf, "ascii"));
+}
+
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -720,20 +784,97 @@ app.post("/api/doctor/appointments/:id/reports", authenticateDoctor, (req, res, 
 });
 
 // Patients can only see medical records and report details tied to their own patient ID.
+
 app.get("/api/patient/medical-records", authenticatePatient, (req, res) => {
+  const patientId = req.patient.id;
+
+  // Create a demo report once per patient in the current server session.
+  const hasDemoReport = reportRecords.some(
+    (report) =>
+      report.patientId === patientId &&
+      report.isDemo === true
+  );
+
+  if (!hasDemoReport) {
+    const reportId = crypto.randomUUID();
+    const reportsDirectory = path.join(
+      process.cwd(),
+      "private-reports"
+    );
+
+    fs.mkdirSync(reportsDirectory, { recursive: true });
+
+    const filePath = path.join(
+      reportsDirectory,
+      `${reportId}.pdf`
+    );
+
+    createDemoMedicalReportPdf(filePath);
+    console.log("Demo report created:", filePath);
+    console.log("Demo report exists:", fs.existsSync(filePath));
+
+    reportRecords.push({
+      id: reportId,
+      appointmentId: null,
+      patientId,
+      doctorId: null,
+      reportName: "General Health Check-up Report (Demo)",
+      instructions:
+        "Fictional sample report for demonstrating file downloads.",
+      status: "Uploaded",
+      originalName: "demo-medical-report.pdf",
+      storedName: `${reportId}.pdf`,
+      storedPath: filePath,
+      createdAt: new Date().toISOString(),
+      isDemo: true,
+    });
+  }
+
   const records = medicalRecords
-    .filter((record) => record.patientId === req.patient.id || record.patientId === "demo-patient")
-    .map(({ id, appointmentId, diagnosis, treatmentNotes, createdAt }) => ({
-      id, appointmentId, diagnosis, treatmentNotes, createdAt,
-    }));
+    .filter(
+      (record) =>
+        record.patientId === patientId ||
+        record.patientId === "demo-patient"
+    )
+    .map(
+      ({ id, appointmentId, diagnosis, treatmentNotes, createdAt }) => ({
+        id,
+        appointmentId,
+        diagnosis,
+        treatmentNotes,
+        createdAt,
+      })
+    );
+
   const reports = reportRecords
-    .filter((report) => report.patientId === req.patient.id)
-    .map(({ id, appointmentId, reportName, instructions, status, originalName, createdAt }) => ({
-      id, appointmentId, reportName, instructions, status, originalName,
-      hasFile: Boolean(reportRecords.find((item) => item.id === id)?.storedName), createdAt,
-    }));
+    .filter((report) => report.patientId === patientId)
+    .map(
+      ({
+        id,
+        appointmentId,
+        reportName,
+        instructions,
+        status,
+        originalName,
+        createdAt,
+        isDemo,
+        storedName,
+      }) => ({
+        id,
+        appointmentId,
+        reportName,
+        instructions,
+        status,
+        originalName,
+        createdAt,
+        isDemo: Boolean(isDemo),
+        hasFile: Boolean(storedName),
+      })
+    );
+
   res.json({ records, reports });
 });
+
 
 // Private download route: only the assigned doctor or the report's patient can download.
 app.get("/api/reports/:id/download", authenticateMedicalViewer, (req, res) => {
@@ -748,11 +889,26 @@ app.get("/api/reports/:id/download", authenticateMedicalViewer, (req, res) => {
   if (!allowed) {
     return res.status(403).json({ message: "You are not authorized to access this report." });
   }
+
   if (!fs.existsSync(report.storedPath)) {
-    return res.status(404).json({ message: "The report file is missing from server storage." });
+    console.error("Medical report file missing:", report.storedPath);
+    return res.status(404).json({
+      message: "The report file is missing from server storage.",
+    });
   }
-  return res.download(report.storedPath, report.originalName || "medical-report");
+
+  return res.download(
+    report.storedPath,
+    report.originalName || "medical-report.pdf",
+    { dotfiles: "allow" },
+    (error) => {
+      if (error) {
+        console.error("Medical report download failed:", error);
+      }
+    }
+  );
 });
+
 /* TASK5_MEDICAL_REPORTS_END */
 
 
@@ -966,111 +1122,68 @@ app.get(
     return res.json({ orders });
   }
 );
-
-/* PATIENT BILLS */
-
 app.get("/api/patient/bills/me", authenticatePatient, (req, res) => {
-  const patientOrders = demoOrders.filter(
-    (order) => order.patientId === req.patient.id
-  );
-
-  const bills = patientOrders.map((order) => ({
-    id: order.id,
-    billNumber: `BILL-${order.id.slice(0, 8).toUpperCase()}`,
-    date: order.createdAt,
-    items: order.items.map((item) => ({
-      name: item.name,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      subtotal: item.subtotal,
-    })),
-    totalAmount: order.totalAmount,
-    paymentStatus:
-      order.paymentStatus === "Paid (Demo)" ? "Paid" : "Pending",
-    paymentMode: order.paymentMode,
-    paidAt: order.paidAt || null,
-  }));
-
-  bills.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return res.json({ bills });
+  const bills = demoOrders
+    .filter(o => o.patientId === req.patient.id)
+    .map(o => ({
+      id: o.id,
+      billNumber: `BILL-${o.id.slice(0, 8).toUpperCase()}`,
+      date: o.createdAt,
+      totalAmount: o.totalAmount,
+      paymentStatus: o.paymentStatus.startsWith("Paid") ? "Paid" : "Pending",
+      paidAt: o.paidAt,
+      items: o.items,
+    }));
+  res.json({ bills });
 });
-
-
+// Create sample bills for the logged-in patient (demo only).
 app.post("/api/patient/bills/demo", authenticatePatient, (req, res) => {
-  const patientId = req.patient.id;
-
-  // Avoid creating duplicate demo bills for the same patient.
-  const existingDemoBills = demoOrders.filter(
-    (order) =>
-      order.patientId === patientId &&
-      order.demoSource === "patient-bills-demo"
+  const alreadyHasOrders = demoOrders.some(
+    order => order.patientId === req.patient.id
   );
 
-  if (existingDemoBills.length > 0) {
-    return res.json({
-      message: "Demo bills are already available.",
-      bills: existingDemoBills,
-    });
+  if (alreadyHasOrders) {
+    return res.json({ message: "Bills already exist for this account." });
   }
 
-  const now = Date.now();
+  const buildOrder = (lines, paid) => {
+    const items = lines.map(({ medicineId, quantity }) => {
+      const medicine = medicineCatalogue.find(m => m.id === medicineId);
+      return {
+        medicineId: medicine.id,
+        name: medicine.name,
+        unitPrice: medicine.price,
+        quantity,
+        subtotal: medicine.price * quantity
+      };
+    });
 
-  const pendingBill = {
-    id: crypto.randomUUID(),
-    patientId,
-    items: [
-      {
-        medicineId: "DEMO001",
-        name: "Demo Consultation Medicine",
-        unitPrice: 150,
-        quantity: 1,
-        subtotal: 150,
-      },
-      {
-        medicineId: "DEMO002",
-        name: "Demo Health Supplies",
-        unitPrice: 100,
-        quantity: 2,
-        subtotal: 200,
-      },
-    ],
-    totalAmount: 350,
-    paymentStatus: "Pending",
-    paymentMode: "Demo only",
-    createdAt: new Date(now - 86400000).toISOString(),
-    paidAt: null,
-    demoSource: "patient-bills-demo",
+    const order = {
+      id: crypto.randomUUID(),
+      patientId: req.patient.id,
+      items,
+      totalAmount: items.reduce((sum, item) => sum + item.subtotal, 0),
+      paymentStatus: paid ? "Paid (Demo)" : "Pending",
+      paymentMode: "Demo simulation",
+      createdAt: new Date().toISOString(),
+      isDemo: true
+    };
+
+    if (paid) {
+      order.paymentReference = `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+      order.paidAt = order.createdAt;
+    }
+
+    return order;
   };
 
-  const paidBill = {
-    id: crypto.randomUUID(),
-    patientId,
-    items: [
-      {
-        medicineId: "DEMO003",
-        name: "Demo Prescription Medicine",
-        unitPrice: 120,
-        quantity: 1,
-        subtotal: 120,
-      },
-    ],
-    totalAmount: 120,
-    paymentStatus: "Paid (Demo)",
-    paymentMode: "Demo only",
-    createdAt: new Date(now - 172800000).toISOString(),
-    paidAt: new Date(now - 172800000 + 3600000).toISOString(),
-    demoSource: "patient-bills-demo",
-  };
+  demoOrders.push(
+    buildOrder([{ medicineId: "MED001", quantity: 2 }, { medicineId: "MED002", quantity: 1 }], true),
+    buildOrder([{ medicineId: "MED003", quantity: 1 }, { medicineId: "MED004", quantity: 2 }], false)
+  );
 
-  demoOrders.push(pendingBill, paidBill);
-
-  return res.status(201).json({
-    message: "Two sample bills created. No real payment was processed.",
-    bills: [pendingBill, paidBill],
-  });
+  return res.status(201).json({ message: "Demo bills created." });
 });
-
 
 app.listen(process.env.PORT || 5000, () => {
   console.log("Backend running at http://localhost:5000");
