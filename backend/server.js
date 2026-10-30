@@ -586,6 +586,52 @@ function authenticateDoctor(req, res, next) {
   }
 }
 
+// Bed availability is available to authenticated clinical staff (doctor login).
+app.get("/api/beds", authenticateDoctor, (req, res) => {
+  const ward = typeof req.query.ward === "string" ? req.query.ward : "";
+  const filteredBeds = ward ? beds.filter((bed) => bed.ward === ward) : beds;
+  const summary = {
+    total: filteredBeds.length,
+    available: filteredBeds.filter((bed) => bed.status === "Available").length,
+    occupied: filteredBeds.filter((bed) => bed.status === "Occupied").length,
+  };
+  return res.json({
+    beds: filteredBeds,
+    wards: [...new Set(beds.map((bed) => bed.ward))],
+    summary,
+  });
+});
+
+app.patch("/api/beds/:id/allocate", authenticateDoctor, (req, res) => {
+  const bed = beds.find((item) => item.id === req.params.id);
+  if (!bed) return res.status(404).json({ message: "Bed not found." });
+  if (bed.status !== "Available") {
+    return res.status(409).json({ message: "This bed is already occupied." });
+  }
+  const patientName = typeof req.body?.patientName === "string"
+    ? req.body.patientName.trim()
+    : "";
+  if (!patientName || patientName.length > 120) {
+    return res.status(400).json({ message: "Enter a patient name (max 120 characters)." });
+  }
+  bed.status = "Occupied";
+  bed.patientName = patientName;
+  bed.allocatedAt = new Date().toISOString();
+  return res.json({ message: `Bed ${bed.id} allocated successfully.`, bed });
+});
+
+app.patch("/api/beds/:id/release", authenticateDoctor, (req, res) => {
+  const bed = beds.find((item) => item.id === req.params.id);
+  if (!bed) return res.status(404).json({ message: "Bed not found." });
+  if (bed.status !== "Occupied") {
+    return res.status(409).json({ message: "This bed is already available." });
+  }
+  bed.status = "Available";
+  bed.patientName = "";
+  delete bed.allocatedAt;
+  return res.json({ message: `Bed ${bed.id} released successfully.`, bed });
+});
+
 function authenticateMedicalViewer(req, res, next) {
   const authorization = req.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
@@ -1217,6 +1263,27 @@ const doctors = [
 ];
 
 const appointments = [];
+
+// In-memory demonstration bed inventory. Changes remain available while the
+// backend process is running; replace with database records for production.
+const beds = [
+  { id: "GW-101", ward: "General Ward", room: "G-01", status: "Occupied", patientName: "Demo Patient - Aarav" },
+  { id: "GW-102", ward: "General Ward", room: "G-01", status: "Available", patientName: "" },
+  { id: "GW-103", ward: "General Ward", room: "G-02", status: "Available", patientName: "" },
+  { id: "GW-104", ward: "General Ward", room: "G-02", status: "Occupied", patientName: "Demo Patient - Meera" },
+  { id: "GW-105", ward: "General Ward", room: "G-03", status: "Available", patientName: "" },
+  { id: "ICU-201", ward: "ICU", room: "ICU-01", status: "Occupied", patientName: "Demo Patient - Kabir" },
+  { id: "ICU-202", ward: "ICU", room: "ICU-01", status: "Available", patientName: "" },
+  { id: "ICU-203", ward: "ICU", room: "ICU-02", status: "Available", patientName: "" },
+  { id: "ICU-204", ward: "ICU", room: "ICU-02", status: "Occupied", patientName: "Demo Patient - Diya" },
+  { id: "PW-301", ward: "Private Ward", room: "P-01", status: "Available", patientName: "" },
+  { id: "PW-302", ward: "Private Ward", room: "P-01", status: "Occupied", patientName: "Demo Patient - Rohan" },
+  { id: "PW-303", ward: "Private Ward", room: "P-02", status: "Available", patientName: "" },
+  { id: "PW-304", ward: "Private Ward", room: "P-02", status: "Available", patientName: "" },
+  { id: "MW-401", ward: "Maternity Ward", room: "M-01", status: "Occupied", patientName: "Demo Patient - Anika" },
+  { id: "MW-402", ward: "Maternity Ward", room: "M-01", status: "Available", patientName: "" },
+  { id: "MW-403", ward: "Maternity Ward", room: "M-02", status: "Available", patientName: "" },
+];
 
 const appointmentSlots = [
   "09:00",
