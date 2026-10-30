@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import "./DoctorDashboard.css";
+import BedAvailability from "./BedAvailability";
 
 const API = "http://localhost:5000/api";
 
@@ -248,6 +249,8 @@ export default function DoctorDashboard({ user, onLogout }) {
           Log out
         </button>
       </header>
+
+      <BedAvailability token={token} />
 
       {message && (
         <div
