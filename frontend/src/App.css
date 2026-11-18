@@ -46,6 +46,10 @@ body {
   letter-spacing: 2px;
 }
 
+h1,
+h2 {
+  color: #183247;   /* dark navy, same as your body text */
+}
 h1 {
   margin-bottom: 10px;
   font-size: 28px;
