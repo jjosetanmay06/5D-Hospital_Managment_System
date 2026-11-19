@@ -32,3 +32,4 @@ dist-ssr/
 
 # Temporary backups
 *.task5-backup
+coverage
